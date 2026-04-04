@@ -3,6 +3,10 @@ obj/
 .vs/
 *.user
 *.suo
+.env
+.idea
+artifacts
+appsettings.Development.json
 
 frontend/node_modules/
 frontend/dist/
