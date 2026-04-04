@@ -8,7 +8,7 @@ import {
 } from 'react'
 
 import { api } from '@/lib/api'
-import type { AuthResponse, AuthUser, Permission } from '@/lib/types'
+import type { AuthResponse, AuthUser, Permission, ThemePreference } from '@/lib/types'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -16,6 +16,7 @@ interface AuthContextValue {
   needsSetup: boolean
   initializing: boolean
   hasPermission: (permission: Permission) => boolean
+  updateThemePreference: (themePreference: ThemePreference) => Promise<void>
   login: (userName: string, password: string) => Promise<void>
   completeSetup: (userName: string, password: string) => Promise<void>
   logout: () => void
@@ -23,6 +24,19 @@ interface AuthContextValue {
 
 const storageKey = 'welpenwache.auth'
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+function normalizeThemePreference(themePreference: unknown): ThemePreference {
+  return themePreference === 'light' || themePreference === 'dark' || themePreference === 'system'
+    ? themePreference
+    : 'system'
+}
+
+function normalizeUser(user: AuthUser): AuthUser {
+  return {
+    ...user,
+    themePreference: normalizeThemePreference(user.themePreference),
+  }
+}
 
 function persistSession(session: AuthResponse | null) {
   if (!session) {
@@ -34,7 +48,7 @@ function persistSession(session: AuthResponse | null) {
     storageKey,
     JSON.stringify({
       token: session.token,
-      user: session.user,
+      user: normalizeUser(session.user),
     }),
   )
 }
@@ -46,7 +60,11 @@ function readSession(): { token: string; user: AuthUser } | null {
   }
 
   try {
-    return JSON.parse(raw) as { token: string; user: AuthUser }
+    const session = JSON.parse(raw) as { token: string; user: AuthUser }
+    return {
+      token: session.token,
+      user: normalizeUser(session.user),
+    }
   } catch {
     localStorage.removeItem(storageKey)
     return null
@@ -75,7 +93,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
             const currentUser = await api.getMe(initialSession.token)
             if (!active) return
             setToken(initialSession.token)
-            setUser(currentUser)
+            setUser(normalizeUser(currentUser))
           } catch {
             persistSession(null)
             if (!active) return
@@ -99,9 +117,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const applyAuthResponse = (response: AuthResponse) => {
     setToken(response.token)
-    setUser(response.user)
+    setUser(normalizeUser(response.user))
     setNeedsSetup(false)
-    persistSession(response)
+    persistSession({
+      ...response,
+      user: normalizeUser(response.user),
+    })
   }
 
   const value = useMemo<AuthContextValue>(
@@ -112,6 +133,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       initializing,
       hasPermission: (permission) =>
         Boolean(user?.isAdministrator || user?.permissions.includes(permission)),
+      updateThemePreference: async (themePreference) => {
+        if (!token) {
+          return
+        }
+
+        const updatedUser = normalizeUser(await api.updateThemePreference(token, themePreference))
+        setUser(updatedUser)
+        persistSession(
+          updatedUser && token
+            ? {
+                token,
+                expiresAtUtc: new Date().toISOString(),
+                user: updatedUser,
+              }
+            : null,
+        )
+      },
       login: async (userName, password) => {
         const response = await api.login({ userName, password })
         applyAuthResponse(response)

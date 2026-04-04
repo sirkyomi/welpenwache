@@ -25,6 +25,33 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    --color-background: #191511;
+    --color-foreground: #f4eadf;
+    --color-card: #231d18;
+    --color-card-foreground: #f4eadf;
+    --color-popover: #231d18;
+    --color-popover-foreground: #f4eadf;
+    --color-primary: #e5a46f;
+    --color-primary-foreground: #1b140f;
+    --color-secondary: #3a2c20;
+    --color-secondary-foreground: #f4eadf;
+    --color-muted: #2c241d;
+    --color-muted-foreground: #c7b6a4;
+    --color-accent: #1d3b31;
+    --color-accent-foreground: #d9f4e8;
+    --color-destructive: #ef6b5f;
+    --color-destructive-foreground: #1b140f;
+    --color-border: #3d3025;
+    --color-input: #3d3025;
+    --color-ring: #e5a46f;
+    color-scheme: dark;
+  }
+
   * {
     @apply border-border;
   }
@@ -39,6 +66,13 @@
       radial-gradient(circle at top left, rgba(158, 61, 35, 0.16), transparent 28%),
       radial-gradient(circle at top right, rgba(30, 77, 56, 0.14), transparent 26%),
       linear-gradient(180deg, #f9f2e8 0%, #f6ede2 100%);
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(circle at top left, rgba(229, 164, 111, 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgba(43, 122, 94, 0.14), transparent 26%),
+      linear-gradient(180deg, #171310 0%, #1d1814 100%);
   }
 
   h1,

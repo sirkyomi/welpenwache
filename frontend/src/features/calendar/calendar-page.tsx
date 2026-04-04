@@ -14,6 +14,7 @@ import {
 import { de } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -92,7 +93,7 @@ export function CalendarPage() {
                 <div
                   key={isoDate}
                   className={cn(
-                    'min-h-40 rounded-2xl border border-border/80 bg-white/70 p-3 shadow-sm',
+                    'min-h-40 rounded-2xl border border-border/80 bg-card/80 p-3 shadow-sm',
                     !isSameMonth(date, currentMonth) && 'opacity-45',
                     isToday(date) && 'border-primary ring-2 ring-primary/20',
                   )}
@@ -109,9 +110,10 @@ export function CalendarPage() {
                       </div>
                     ) : (
                       entries.map((entry) => (
-                        <div
+                        <Link
                           key={`${entry.internshipId}-${entry.teamId}`}
-                          className="rounded-xl border px-2 py-2 text-xs shadow-sm"
+                          to={`/praktikanten/${entry.internId}`}
+                          className="block rounded-xl border px-2 py-2 text-xs shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
                           style={{
                             backgroundColor: `${entry.teamColorHex}1A`,
                             borderColor: `${entry.teamColorHex}55`,
@@ -119,7 +121,7 @@ export function CalendarPage() {
                         >
                           <div className="font-semibold">{entry.internName}</div>
                           <div className="text-[11px] text-muted-foreground">{entry.teamName}</div>
-                        </div>
+                        </Link>
                       ))
                     )}
                   </div>

@@ -45,7 +45,7 @@ function AuthCard({
   }
 
   return (
-    <Card className="w-full max-w-md border-white/70 bg-card/95 shadow-xl">
+    <Card className="w-full max-w-md border-border/70 bg-card/95 shadow-xl">
       <CardHeader className="space-y-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           {icon}

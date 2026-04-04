@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, SquarePen, UsersRound } from 'lucide-react'
+import { Plus, SquarePen, Trash2, UsersRound } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -18,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
+import { formatGermanDateRange } from '@/features/interns/intern-formatters'
 import { ApiError, api } from '@/lib/api'
 import type { Intern } from '@/lib/types'
 
@@ -72,8 +75,10 @@ function createEmptyForm(): InternFormState {
 export function InternsPage() {
   const { hasPermission, token } = useAuth()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const [editingIntern, setEditingIntern] = useState<Intern | null>(null)
+  const [internPendingDelete, setInternPendingDelete] = useState<Intern | null>(null)
   const [form, setForm] = useState<InternFormState>(createEmptyForm)
 
   const internsQuery = useQuery({
@@ -128,8 +133,28 @@ export function InternsPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async (intern: Intern) => {
+      if (!token) {
+        return
+      }
+
+      await api.deleteIntern(token, intern.id)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['interns'] })
+      await queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      setInternPendingDelete(null)
+      toast.success('Praktikant gelöscht.')
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : 'Der Praktikant konnte nicht gelöscht werden.')
+    },
+  })
+
   const interns = useMemo(() => internsQuery.data ?? [], [internsQuery.data])
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
+  const requestedEditInternId = searchParams.get('edit')
 
   const openCreate = () => {
     setEditingIntern(null)
@@ -156,6 +181,31 @@ export function InternsPage() {
       })),
     })
     setOpen(true)
+  }
+
+  useEffect(() => {
+    if (!hasPermission('interns.manage') || !requestedEditInternId || interns.length === 0) {
+      return
+    }
+
+    const requestedIntern = interns.find((intern) => intern.id === requestedEditInternId)
+    if (!requestedIntern) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      openEdit(requestedIntern)
+
+      const nextSearchParams = new URLSearchParams(searchParams)
+      nextSearchParams.delete('edit')
+      setSearchParams(nextSearchParams, { replace: true })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [hasPermission, interns, requestedEditInternId, searchParams, setSearchParams])
+
+  const deleteIntern = async (intern: Intern) => {
+    await deleteMutation.mutateAsync(intern)
   }
 
   const updateInternship = (
@@ -237,6 +287,44 @@ export function InternsPage() {
 
   return (
     <section className="space-y-6">
+      <Dialog
+        open={Boolean(internPendingDelete)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !deleteMutation.isPending) {
+            setInternPendingDelete(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Praktikant löschen</DialogTitle>
+            <DialogDescription>
+              {internPendingDelete
+                ? `Soll "${internPendingDelete.fullName}" wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.`
+                : 'Soll dieser Praktikant wirklich gelöscht werden?'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setInternPendingDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => internPendingDelete && void deleteIntern(internPendingDelete)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Löscht ...' : 'Löschen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -444,20 +532,35 @@ export function InternsPage() {
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           {interns.map((intern) => (
-            <Card key={intern.id} className="border-border/70 bg-white/70">
+            <Card key={intern.id} className="border-border/70 bg-card/80">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <UsersRound className="h-4 w-4 text-primary" />
-                      {intern.fullName}
+                      <Link
+                        to={`/praktikanten/${intern.id}`}
+                        className="transition-colors hover:text-primary focus:outline-none focus:text-primary"
+                      >
+                        {intern.fullName}
+                      </Link>
                     </CardTitle>
                     <CardDescription>{intern.school || 'Keine Schule hinterlegt.'}</CardDescription>
                   </div>
                   {hasPermission('interns.manage') ? (
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
-                      <SquarePen className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
+                        <SquarePen className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setInternPendingDelete(intern)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
               </CardHeader>
@@ -474,7 +577,7 @@ export function InternsPage() {
                       <div key={internship.id} className="rounded-2xl border border-border/70 bg-background/70 p-3">
                         <div className="mb-2">
                           <p className="text-sm font-semibold">
-                            {internship.startDate} bis {internship.endDate}
+                            {formatGermanDateRange(internship.startDate, internship.endDate)}
                           </p>
                           {internship.note ? (
                             <p className="text-xs text-muted-foreground">{internship.note}</p>
@@ -483,12 +586,12 @@ export function InternsPage() {
 
                         <div className="space-y-2">
                           {internship.assignments.map((assignment) => (
-                            <div key={assignment.id} className="rounded-2xl border border-border/70 bg-white/80 p-3">
+                            <div key={assignment.id} className="rounded-2xl border border-border/70 bg-card/75 p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold">{assignment.teamName}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    {assignment.startDate} bis {assignment.endDate}
+                                    {formatGermanDateRange(assignment.startDate, assignment.endDate)}
                                   </p>
                                 </div>
                                 <span

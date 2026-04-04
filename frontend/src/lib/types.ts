@@ -4,6 +4,8 @@ export type Permission =
   | 'teams.view'
   | 'teams.manage'
 
+export type ThemePreference = 'system' | 'light' | 'dark'
+
 export interface SetupStatusResponse {
   requiresSetup: boolean
 }
@@ -14,6 +16,7 @@ export interface AuthUser {
   isAdministrator: boolean
   isActive: boolean
   permissions: Permission[]
+  themePreference: ThemePreference
 }
 
 export interface AuthResponse {
@@ -28,6 +31,19 @@ export interface Team {
   description: string | null
   colorHex: string
   isArchived: boolean
+}
+
+export interface TeamAssignmentSummary {
+  assignmentId: string
+  internshipId: string
+  internId: string
+  internName: string
+  startDate: string
+  endDate: string
+}
+
+export interface TeamDetail extends Team {
+  assignments: TeamAssignmentSummary[]
 }
 
 export interface Assignment {

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, SquarePen } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ const emptyForm: TeamFormState = {
 export function TeamsPage() {
   const { hasPermission, token } = useAuth()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [form, setForm] = useState<TeamFormState>(emptyForm)
@@ -76,6 +78,7 @@ export function TeamsPage() {
   })
 
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
+  const requestedEditTeamId = searchParams.get('edit')
 
   const openCreate = () => {
     setEditingTeam(null)
@@ -93,6 +96,27 @@ export function TeamsPage() {
     })
     setOpen(true)
   }
+
+  useEffect(() => {
+    if (!hasPermission('teams.manage') || !requestedEditTeamId || teams.length === 0) {
+      return
+    }
+
+    const requestedTeam = teams.find((team) => team.id === requestedEditTeamId)
+    if (!requestedTeam) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      openEdit(requestedTeam)
+
+      const nextSearchParams = new URLSearchParams(searchParams)
+      nextSearchParams.delete('edit')
+      setSearchParams(nextSearchParams, { replace: true })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [hasPermission, requestedEditTeamId, searchParams, setSearchParams, teams])
 
   return (
     <section className="space-y-6">
@@ -136,11 +160,16 @@ export function TeamsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="team-color">Farbe</Label>
-                    <Input
-                      id="team-color"
-                      value={form.colorHex}
-                      onChange={(event) => setForm((current) => ({ ...current, colorHex: event.target.value }))}
-                    />
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="team-color"
+                        type="color"
+                        value={form.colorHex}
+                        onChange={(event) => setForm((current) => ({ ...current, colorHex: event.target.value.toUpperCase() }))}
+                        className="h-11 w-16 cursor-pointer rounded-xl border-input bg-card p-1"
+                      />
+                      <Input value={form.colorHex} readOnly className="font-mono text-sm text-muted-foreground" />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="team-description">Beschreibung</Label>
@@ -167,13 +196,18 @@ export function TeamsPage() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {teams.map((team) => (
-            <Card key={team.id} className="border-border/70 bg-white/70">
+            <Card key={team.id} className="border-border/70 bg-card/80">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle className="flex items-center gap-3">
                       <span className="inline-block h-4 w-4 rounded-full" style={{ backgroundColor: team.colorHex }} />
-                      {team.name}
+                      <Link
+                        to={`/teams/${team.id}`}
+                        className="transition-colors hover:text-primary focus:outline-none focus:text-primary"
+                      >
+                        {team.name}
+                      </Link>
                     </CardTitle>
                     <CardDescription>{team.description || 'Keine Beschreibung hinterlegt.'}</CardDescription>
                   </div>

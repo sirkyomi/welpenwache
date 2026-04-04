@@ -220,7 +220,7 @@ export function UsersPage() {
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           {users.map((user) => (
-            <Card key={user.id} className="border-border/70 bg-white/70">
+            <Card key={user.id} className="border-border/70 bg-card/80">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                   <div>

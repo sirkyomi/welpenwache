@@ -6,7 +6,9 @@ import type {
   Intern,
   Permission,
   SetupStatusResponse,
+  TeamDetail,
   Team,
+  ThemePreference,
 } from '@/lib/types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5150'
@@ -50,7 +52,10 @@ export const api = {
   login: (payload: { userName: string; password: string }) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
   getMe: (token: string) => request<AuthUser>('/api/auth/me', undefined, token),
+  updateThemePreference: (token: string, themePreference: ThemePreference) =>
+    request<AuthUser>('/api/auth/theme', { method: 'PUT', body: JSON.stringify({ themePreference }) }, token),
   getTeams: (token: string) => request<Team[]>('/api/teams', undefined, token),
+  getTeam: (token: string, id: string) => request<TeamDetail>(`/api/teams/${id}`, undefined, token),
   createTeam: (
     token: string,
     payload: { name: string; description: string | null; colorHex: string; isArchived: boolean },
@@ -61,6 +66,7 @@ export const api = {
     payload: { name: string; description: string | null; colorHex: string; isArchived: boolean },
   ) => request<Team>(`/api/teams/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
   getInterns: (token: string) => request<Intern[]>('/api/interns', undefined, token),
+  getIntern: (token: string, id: string) => request<Intern>(`/api/interns/${id}`, undefined, token),
   createIntern: (
     token: string,
     payload: {
@@ -92,6 +98,8 @@ export const api = {
       }>
     },
   ) => request<Intern>(`/api/interns/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+  deleteIntern: (token: string, id: string) =>
+    request<void>(`/api/interns/${id}`, { method: 'DELETE' }, token),
   getCalendarMonth: (token: string, year: number, month: number) =>
     request<CalendarMonth>(`/api/calendar/month?year=${year}&month=${month}`, undefined, token),
   getUsers: (token: string) => request<AuthUser[]>('/api/users', undefined, token),
