@@ -1,20 +1,18 @@
 namespace WelpenWache.Api.Domain;
 
-public sealed class Team
+public sealed class Supervisor
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid TeamId { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
     public string NormalizedName { get; set; } = string.Empty;
 
-    public string? Description { get; set; }
+    public string? Notes { get; set; }
 
-    public string ColorHex { get; set; } = "#2563EB";
-
-    public bool IsArchived { get; set; }
-
-    public List<Supervisor> Supervisors { get; set; } = [];
+    public Team Team { get; set; } = null!;
 
     public List<InternshipAssignment> Assignments { get; set; } = [];
 }

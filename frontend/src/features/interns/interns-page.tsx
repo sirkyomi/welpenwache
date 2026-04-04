@@ -22,10 +22,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
 import { formatGermanDateRange } from '@/features/interns/intern-formatters'
 import { ApiError, api } from '@/lib/api'
-import type { Intern } from '@/lib/types'
+import type { Intern, Team } from '@/lib/types'
 
 interface AssignmentFormState {
   teamId: string
+  supervisorId: string
   startDate: string
   endDate: string
 }
@@ -48,6 +49,7 @@ interface InternFormState {
 function createEmptyAssignment(): AssignmentFormState {
   return {
     teamId: '',
+    supervisorId: '',
     startDate: '',
     endDate: '',
   }
@@ -70,6 +72,10 @@ function createEmptyForm(): InternFormState {
     notes: '',
     internships: [],
   }
+}
+
+function getSupervisorsForTeam(teams: Team[], teamId: string) {
+  return teams.find((team) => team.id === teamId)?.supervisors ?? []
 }
 
 export function InternsPage() {
@@ -110,6 +116,7 @@ export function InternsPage() {
           note: internship.note || null,
           assignments: internship.assignments.map((assignment) => ({
             teamId: assignment.teamId,
+            supervisorId: assignment.supervisorId || null,
             startDate: assignment.startDate,
             endDate: assignment.endDate,
           })),
@@ -175,6 +182,7 @@ export function InternsPage() {
         note: internship.note ?? '',
         assignments: internship.assignments.map((assignment) => ({
           teamId: assignment.teamId,
+          supervisorId: assignment.supervisorId ?? '',
           startDate: assignment.startDate,
           endDate: assignment.endDate,
         })),
@@ -238,6 +246,35 @@ export function InternsPage() {
                   ? { ...assignment, [field]: value }
                   : assignment,
               ),
+            }
+          : internship,
+      ),
+    }))
+  }
+
+  const updateAssignmentTeam = (internshipIndex: number, assignmentIndex: number, teamId: string) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.map((internship, currentInternshipIndex) =>
+        currentInternshipIndex === internshipIndex
+          ? {
+              ...internship,
+              assignments: internship.assignments.map((assignment, currentAssignmentIndex) => {
+                if (currentAssignmentIndex !== assignmentIndex) {
+                  return assignment
+                }
+
+                const nextSupervisors = getSupervisorsForTeam(teams, teamId)
+                const supervisorStillValid = nextSupervisors.some(
+                  (supervisor) => supervisor.id === assignment.supervisorId,
+                )
+
+                return {
+                  ...assignment,
+                  teamId,
+                  supervisorId: supervisorStillValid ? assignment.supervisorId : '',
+                }
+              }),
             }
           : internship,
       ),
@@ -341,7 +378,7 @@ export function InternsPage() {
                   Praktikant anlegen
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>{editingIntern ? 'Praktikant bearbeiten' : 'Neuen Praktikanten anlegen'}</DialogTitle>
                   <DialogDescription>
@@ -466,57 +503,88 @@ export function InternsPage() {
                             </Button>
                           </div>
 
-                          {internship.assignments.map((assignment, assignmentIndex) => (
-                            <div
-                              key={`${internshipIndex}-${assignmentIndex}`}
-                              className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-[1.4fr_1fr_1fr_auto]"
-                            >
-                              <div className="space-y-2">
-                                <Label>Team</Label>
-                                <Select
-                                  value={assignment.teamId}
-                                  onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'teamId', value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Team wählen" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {teams.map((team) => (
-                                      <SelectItem key={team.id} value={team.id}>
-                                        {team.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                          {internship.assignments.map((assignment, assignmentIndex) => {
+                            const supervisors = getSupervisorsForTeam(teams, assignment.teamId)
+
+                            return (
+                              <div
+                                key={`${internshipIndex}-${assignmentIndex}`}
+                                className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-[1.2fr_1.2fr_1fr_1fr_auto]"
+                              >
+                                <div className="space-y-2">
+                                  <Label>Team</Label>
+                                  <Select
+                                    value={assignment.teamId}
+                                    onValueChange={(value) => updateAssignmentTeam(internshipIndex, assignmentIndex, value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Team wählen" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {teams.map((team) => (
+                                        <SelectItem key={team.id} value={team.id}>
+                                          {team.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Betreuer</Label>
+                                  <Select
+                                    value={assignment.supervisorId}
+                                    onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'supervisorId', value)}
+                                    disabled={!assignment.teamId || supervisors.length === 0}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue
+                                        placeholder={
+                                          !assignment.teamId
+                                            ? 'Erst Team wählen'
+                                            : supervisors.length === 0
+                                              ? 'Keine Betreuer verfügbar'
+                                              : 'Betreuer wählen'
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {supervisors.map((supervisor) => (
+                                        <SelectItem key={supervisor.id} value={supervisor.id}>
+                                          {supervisor.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Von</Label>
+                                  <Input
+                                    type="date"
+                                    value={assignment.startDate}
+                                    onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'startDate', event.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Bis</Label>
+                                  <Input
+                                    type="date"
+                                    value={assignment.endDate}
+                                    onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'endDate', event.target.value)}
+                                  />
+                                </div>
+                                <div className="flex items-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    disabled={internship.assignments.length === 1}
+                                    onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
+                                  >
+                                    Entfernen
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label>Von</Label>
-                                <Input
-                                  type="date"
-                                  value={assignment.startDate}
-                                  onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'startDate', event.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Bis</Label>
-                                <Input
-                                  type="date"
-                                  value={assignment.endDate}
-                                  onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'endDate', event.target.value)}
-                                />
-                              </div>
-                              <div className="flex items-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  disabled={internship.assignments.length === 1}
-                                  onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
-                                >
-                                  Entfernen
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -592,6 +660,9 @@ export function InternsPage() {
                                   <p className="text-sm font-semibold">{assignment.teamName}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {formatGermanDateRange(assignment.startDate, assignment.endDate)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Betreuer: {assignment.supervisorName || 'Nicht zugeordnet'}
                                   </p>
                                 </div>
                                 <span

@@ -58,12 +58,24 @@ export const api = {
   getTeam: (token: string, id: string) => request<TeamDetail>(`/api/teams/${id}`, undefined, token),
   createTeam: (
     token: string,
-    payload: { name: string; description: string | null; colorHex: string; isArchived: boolean },
+    payload: {
+      name: string
+      description: string | null
+      colorHex: string
+      isArchived: boolean
+      supervisors: Array<{ id?: string; name: string; notes: string | null }>
+    },
   ) => request<Team>('/api/teams', { method: 'POST', body: JSON.stringify(payload) }, token),
   updateTeam: (
     token: string,
     id: string,
-    payload: { name: string; description: string | null; colorHex: string; isArchived: boolean },
+    payload: {
+      name: string
+      description: string | null
+      colorHex: string
+      isArchived: boolean
+      supervisors: Array<{ id?: string; name: string; notes: string | null }>
+    },
   ) => request<Team>(`/api/teams/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
   getInterns: (token: string) => request<Intern[]>('/api/interns', undefined, token),
   getIntern: (token: string, id: string) => request<Intern>(`/api/interns/${id}`, undefined, token),
@@ -78,7 +90,7 @@ export const api = {
         startDate: string
         endDate: string
         note: string | null
-        assignments: Array<{ teamId: string; startDate: string; endDate: string }>
+        assignments: Array<{ teamId: string; supervisorId: string | null; startDate: string; endDate: string }>
       }>
     },
   ) => request<Intern>('/api/interns', { method: 'POST', body: JSON.stringify(payload) }, token),
@@ -94,7 +106,7 @@ export const api = {
         startDate: string
         endDate: string
         note: string | null
-        assignments: Array<{ teamId: string; startDate: string; endDate: string }>
+        assignments: Array<{ teamId: string; supervisorId: string | null; startDate: string; endDate: string }>
       }>
     },
   ) => request<Intern>(`/api/interns/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),

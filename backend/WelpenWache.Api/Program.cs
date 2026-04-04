@@ -323,6 +323,7 @@ teamsGroup.MapGet("/", async (ClaimsPrincipal principal, ApplicationDbContext db
     }
 
     var teams = await dbContext.Teams
+        .Include(team => team.Supervisors)
         .OrderBy(team => team.IsArchived)
         .ThenBy(team => team.Name)
         .ToListAsync();
@@ -341,6 +342,9 @@ teamsGroup.MapGet("/{id:guid}", async (
     }
 
     var team = await dbContext.Teams
+        .Include(item => item.Supervisors)
+        .Include(item => item.Assignments)
+            .ThenInclude(assignment => assignment.Supervisor)
         .Include(item => item.Assignments)
             .ThenInclude(assignment => assignment.Internship)
                 .ThenInclude(internship => internship.Intern)
@@ -367,7 +371,15 @@ teamsGroup.MapPost("/", [Authorize(Policy = PermissionCatalog.TeamsManage)] asyn
         NormalizedName = NormalizeKey(request.Name),
         Description = request.Description?.Trim(),
         ColorHex = NormalizeColor(request.ColorHex),
-        IsArchived = request.IsArchived
+        IsArchived = request.IsArchived,
+        Supervisors = (request.Supervisors ?? [])
+            .Select(supervisor => new Supervisor
+            {
+                Name = supervisor.Name.Trim(),
+                NormalizedName = NormalizeKey(supervisor.Name),
+                Notes = supervisor.Notes?.Trim()
+            })
+            .ToList()
     };
 
     dbContext.Teams.Add(team);
@@ -397,9 +409,19 @@ teamsGroup.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.TeamsManag
     team.Description = request.Description?.Trim();
     team.ColorHex = NormalizeColor(request.ColorHex);
     team.IsArchived = request.IsArchived;
+    var existingSupervisors = await dbContext.Supervisors
+        .Where(supervisor => supervisor.TeamId == id)
+        .ToListAsync();
+
+    SyncSupervisors(dbContext, id, existingSupervisors, request.Supervisors ?? []);
 
     await dbContext.SaveChangesAsync();
-    return Results.Ok(team.ToResponse());
+
+    var updatedTeam = await dbContext.Teams
+        .Include(item => item.Supervisors)
+        .SingleAsync(item => item.Id == id);
+
+    return Results.Ok(updatedTeam.ToResponse());
 });
 
 teamsGroup.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.TeamsManage)] async (
@@ -432,6 +454,9 @@ internsGroup.MapGet("/", async (ApplicationDbContext dbContext) =>
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
                 .ThenInclude(assignment => assignment.Team)
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Supervisor)
         .OrderBy(item => item.LastName)
         .ThenBy(item => item.FirstName)
         .ToListAsync();
@@ -445,6 +470,9 @@ internsGroup.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext dbContext
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
                 .ThenInclude(assignment => assignment.Team)
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Supervisor)
         .SingleOrDefaultAsync(item => item.Id == id);
 
     return intern is null
@@ -470,6 +498,9 @@ internsGroup.MapPost("/", [Authorize(Policy = PermissionCatalog.InternsManage)] 
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
                 .ThenInclude(assignment => assignment.Team)
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Supervisor)
         .SingleAsync(item => item.Id == intern.Id);
 
     return Results.Created($"/api/interns/{intern.Id}", createdIntern.ToResponse());
@@ -518,6 +549,7 @@ internsGroup.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.InternsM
                 .Select(assignment => new InternshipAssignment
                 {
                     TeamId = assignment.TeamId,
+                    SupervisorId = assignment.SupervisorId,
                     StartDate = assignment.StartDate,
                     EndDate = assignment.EndDate
                 })
@@ -538,6 +570,9 @@ internsGroup.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.InternsM
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
                 .ThenInclude(assignment => assignment.Team)
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Supervisor)
         .SingleAsync(item => item.Id == id);
 
     return Results.Ok(updatedIntern.ToResponse());
@@ -633,6 +668,64 @@ static async Task<ApiError?> ValidateTeamAsync(TeamRequest request, ApplicationD
         return new ApiError("VALIDATION_ERROR", "Die Teamfarbe muss als HEX-Wert wie #2563EB angegeben werden.");
     }
 
+    var supervisors = request.Supervisors ?? [];
+    var normalizedSupervisorNames = new HashSet<string>(StringComparer.Ordinal);
+    var supervisorIds = new HashSet<Guid>();
+
+    foreach (var supervisor in supervisors)
+    {
+        if (string.IsNullOrWhiteSpace(supervisor.Name))
+        {
+            return new ApiError("VALIDATION_ERROR", "Jeder Betreuer benötigt einen Namen.");
+        }
+
+        var normalizedSupervisorName = NormalizeKey(supervisor.Name);
+        if (!normalizedSupervisorNames.Add(normalizedSupervisorName))
+        {
+            return new ApiError("VALIDATION_ERROR", "Betreuer innerhalb eines Teams müssen eindeutige Namen haben.");
+        }
+
+        if (supervisor.Id is Guid supervisorId)
+        {
+            if (supervisorId == Guid.Empty || !supervisorIds.Add(supervisorId))
+            {
+                return new ApiError("VALIDATION_ERROR", "Die Betreuerdaten enthalten ungueltige oder doppelte IDs.");
+            }
+        }
+    }
+
+    if (currentTeamId is Guid teamId)
+    {
+        if (supervisorIds.Count > 0)
+        {
+            var knownSupervisorIds = await dbContext.Supervisors
+                .Where(supervisor => supervisor.TeamId == teamId && supervisorIds.Contains(supervisor.Id))
+                .Select(supervisor => supervisor.Id)
+                .ToListAsync();
+
+            if (knownSupervisorIds.Count != supervisorIds.Count)
+            {
+                return new ApiError("VALIDATION_ERROR", "Mindestens ein Betreuer gehört nicht zu diesem Team.");
+            }
+        }
+
+        var removedSupervisorIds = await dbContext.Supervisors
+            .Where(supervisor => supervisor.TeamId == teamId && !supervisorIds.Contains(supervisor.Id))
+            .Select(supervisor => supervisor.Id)
+            .ToListAsync();
+
+        if (removedSupervisorIds.Count > 0)
+        {
+            var hasAssignments = await dbContext.Assignments.AnyAsync(assignment =>
+                assignment.SupervisorId.HasValue && removedSupervisorIds.Contains(assignment.SupervisorId.Value));
+
+            if (hasAssignments)
+            {
+                return new ApiError("VALIDATION_ERROR", "Betreuer mit bestehenden Zuweisungen können nicht entfernt werden.");
+            }
+        }
+    }
+
     return null;
 }
 
@@ -649,6 +742,12 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
         .Select(assignment => assignment.TeamId)
         .Distinct()
         .ToArray();
+    var supervisorIds = internships
+        .SelectMany(internship => internship.Assignments)
+        .Where(assignment => assignment.SupervisorId.HasValue)
+        .Select(assignment => assignment.SupervisorId!.Value)
+        .Distinct()
+        .ToArray();
 
     if (teamIds.Length > 0)
     {
@@ -660,6 +759,19 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
         if (knownTeamIds.Count != teamIds.Length)
         {
             return new ApiError("VALIDATION_ERROR", "Mindestens ein ausgewaehltes Team existiert nicht mehr.");
+        }
+    }
+
+    Dictionary<Guid, Guid>? supervisorTeamMap = null;
+    if (supervisorIds.Length > 0)
+    {
+        supervisorTeamMap = await dbContext.Supervisors
+            .Where(supervisor => supervisorIds.Contains(supervisor.Id))
+            .ToDictionaryAsync(supervisor => supervisor.Id, supervisor => supervisor.TeamId);
+
+        if (supervisorTeamMap.Count != supervisorIds.Length)
+        {
+            return new ApiError("VALIDATION_ERROR", "Mindestens ein ausgewählter Betreuer existiert nicht mehr.");
         }
     }
 
@@ -697,6 +809,16 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
                 return new ApiError("VALIDATION_ERROR", "Eine Teamzuweisung hat ein ungueltiges Enddatum.");
             }
 
+            if (assignment.SupervisorId is null || assignment.SupervisorId == Guid.Empty)
+            {
+                return new ApiError("VALIDATION_ERROR", "Jede Teamzuweisung benötigt genau einen Betreuer.");
+            }
+
+            if (supervisorTeamMap is not null && supervisorTeamMap.GetValueOrDefault(assignment.SupervisorId.Value) != assignment.TeamId)
+            {
+                return new ApiError("VALIDATION_ERROR", "Der ausgewählte Betreuer muss zum zugewiesenen Team gehören.");
+            }
+
             if (assignment.StartDate < internship.StartDate || assignment.EndDate > internship.EndDate)
             {
                 return new ApiError("VALIDATION_ERROR", "Alle Teamzuweisungen muessen innerhalb des Praktikumszeitraums liegen.");
@@ -719,6 +841,49 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
 static string NormalizeKey(string value) => value.Trim().ToUpperInvariant();
 
 static string NormalizeColor(string? colorHex) => string.IsNullOrWhiteSpace(colorHex) ? "#2563EB" : colorHex.ToUpperInvariant();
+
+static void SyncSupervisors(
+    ApplicationDbContext dbContext,
+    Guid teamId,
+    IReadOnlyCollection<Supervisor> existingSupervisors,
+    IReadOnlyList<SupervisorUpsertRequest> supervisors)
+{
+    var existingById = existingSupervisors.ToDictionary(supervisor => supervisor.Id);
+    var requestedIds = supervisors
+        .Where(supervisor => supervisor.Id.HasValue)
+        .Select(supervisor => supervisor.Id!.Value)
+        .ToHashSet();
+
+    foreach (var supervisorRequest in supervisors)
+    {
+        if (supervisorRequest.Id is Guid supervisorId && existingById.TryGetValue(supervisorId, out var existingSupervisor))
+        {
+            existingSupervisor.Name = supervisorRequest.Name.Trim();
+            existingSupervisor.NormalizedName = NormalizeKey(supervisorRequest.Name);
+            existingSupervisor.Notes = supervisorRequest.Notes?.Trim();
+            continue;
+        }
+
+        var supervisor = new Supervisor
+        {
+            TeamId = teamId,
+            Name = supervisorRequest.Name.Trim(),
+            NormalizedName = NormalizeKey(supervisorRequest.Name),
+            Notes = supervisorRequest.Notes?.Trim()
+        };
+
+        dbContext.Supervisors.Add(supervisor);
+    }
+
+    var supervisorsToRemove = existingSupervisors
+        .Where(supervisor => !requestedIds.Contains(supervisor.Id))
+        .ToList();
+
+    if (supervisorsToRemove.Count > 0)
+    {
+        dbContext.Supervisors.RemoveRange(supervisorsToRemove);
+    }
+}
 
 static bool CanAccessTeams(ClaimsPrincipal principal) =>
     principal.IsAdministrator()
@@ -744,7 +909,16 @@ static class MappingExtensions
             NormalizeThemePreference(user.ThemePreference));
 
     public static TeamResponse ToResponse(this Team team) =>
-        new(team.Id, team.Name, team.Description, team.ColorHex, team.IsArchived);
+        new(
+            team.Id,
+            team.Name,
+            team.Description,
+            team.ColorHex,
+            team.IsArchived,
+            team.Supervisors
+                .OrderBy(supervisor => supervisor.Name)
+                .Select(supervisor => supervisor.ToResponse())
+                .ToList());
 
     public static TeamDetailResponse ToDetailResponse(this Team team) =>
         new(
@@ -753,6 +927,10 @@ static class MappingExtensions
             team.Description,
             team.ColorHex,
             team.IsArchived,
+            team.Supervisors
+                .OrderBy(supervisor => supervisor.Name)
+                .Select(supervisor => supervisor.ToResponse())
+                .ToList(),
             team.Assignments
                 .OrderBy(assignment => assignment.StartDate)
                 .ThenBy(assignment => assignment.Internship.Intern.LastName)
@@ -762,6 +940,8 @@ static class MappingExtensions
                     assignment.InternshipId,
                     assignment.Internship.InternId,
                     assignment.Internship.Intern.FullName,
+                    assignment.SupervisorId,
+                    assignment.Supervisor?.Name,
                     assignment.StartDate,
                     assignment.EndDate))
                 .ToList());
@@ -788,6 +968,8 @@ static class MappingExtensions
                             assignment.TeamId,
                             assignment.Team.Name,
                             assignment.Team.ColorHex,
+                            assignment.SupervisorId,
+                            assignment.Supervisor?.Name,
                             assignment.StartDate,
                             assignment.EndDate))
                         .ToList()))
@@ -812,6 +994,7 @@ static class MappingExtensions
                         .Select(assignment => new InternshipAssignment
                         {
                             TeamId = assignment.TeamId,
+                            SupervisorId = assignment.SupervisorId,
                             StartDate = assignment.StartDate,
                             EndDate = assignment.EndDate
                         })
@@ -819,6 +1002,9 @@ static class MappingExtensions
                 })
                 .ToList()
         };
+
+    public static SupervisorResponse ToResponse(this Supervisor supervisor) =>
+        new(supervisor.Id, supervisor.TeamId, supervisor.Name, supervisor.Notes);
 
     private static string NormalizeThemePreference(string? value) =>
         UserAccount.IsValidThemePreference(value ?? string.Empty)

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, Palette, SquarePen, UsersRound } from 'lucide-react'
+import { ArrowLeft, BadgeInfo, CalendarDays, Palette, SquarePen, UserRound, UsersRound } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -103,7 +103,7 @@ export function TeamDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 lg:self-start">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 lg:self-start">
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <Palette className="h-4 w-4 text-primary" />
@@ -133,10 +133,39 @@ export function TeamDetailPage() {
               </div>
               <p className="text-sm text-muted-foreground">{team.assignments.length} geplant</p>
             </div>
+
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <UserRound className="h-4 w-4 text-primary" />
+                Betreuer
+              </div>
+              <p className="text-sm text-muted-foreground">{team.supervisors.length} hinterlegt</p>
+            </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="rounded-3xl border border-border/70 bg-background/75 p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <BadgeInfo className="h-4 w-4 text-primary" />
+              <h2 className="text-lg font-semibold">Betreuer im Team</h2>
+            </div>
+            {team.supervisors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Für dieses Team sind noch keine Betreuer angelegt.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {team.supervisors.map((supervisor) => (
+                  <div key={supervisor.id} className="rounded-2xl border border-border/70 bg-card/80 p-4">
+                    <p className="font-semibold">{supervisor.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {supervisor.notes || 'Keine Notiz hinterlegt.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {team.assignments.length === 0 ? (
             <div className="rounded-2xl bg-muted/70 px-4 py-4 text-sm text-muted-foreground">
               Für dieses Team gibt es noch keine Zuweisungen.
@@ -164,6 +193,12 @@ export function TeamDetailPage() {
                   >
                     {assignment.internName}
                   </Link>
+                  <div className="mt-3 border-t border-border/60 pt-3">
+                    <p className="text-sm text-muted-foreground">Betreuer</p>
+                    <p className="text-sm font-medium">
+                      {assignment.supervisorName || 'Kein Betreuer zugeordnet.'}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))
