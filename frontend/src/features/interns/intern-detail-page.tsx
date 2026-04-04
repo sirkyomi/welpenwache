@@ -165,6 +165,9 @@ export function InternDetailPage() {
                           <p className="text-sm text-muted-foreground">
                             {formatGermanDateRange(assignment.startDate, assignment.endDate)}
                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            Betreuer: {assignment.supervisorName || 'Nicht zugeordnet'}
+                          </p>
                         </div>
                         <span
                           className="inline-block h-4 w-4 shrink-0 rounded-full border border-white/70"

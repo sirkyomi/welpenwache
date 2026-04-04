@@ -11,6 +11,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Team> Teams => Set<Team>();
 
+    public DbSet<Supervisor> Supervisors => Set<Supervisor>();
+
     public DbSet<Intern> Interns => Set<Intern>();
 
     public DbSet<Internship> Internships => Set<Internship>();
@@ -53,6 +55,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(team => team.ColorHex).HasMaxLength(7).IsRequired();
             entity.Property(team => team.Description).HasMaxLength(500);
             entity.HasIndex(team => team.NormalizedName).IsUnique();
+            entity.HasMany(team => team.Supervisors)
+                .WithOne(supervisor => supervisor.Team)
+                .HasForeignKey(supervisor => supervisor.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Supervisor>(entity =>
+        {
+            entity.ToTable("Supervisors");
+            entity.HasKey(supervisor => supervisor.Id);
+            entity.Property(supervisor => supervisor.Name).HasMaxLength(120).IsRequired();
+            entity.Property(supervisor => supervisor.NormalizedName).HasMaxLength(120).IsRequired();
+            entity.Property(supervisor => supervisor.Notes).HasMaxLength(1000);
+            entity.HasIndex(supervisor => new { supervisor.TeamId, supervisor.NormalizedName }).IsUnique();
         });
 
         modelBuilder.Entity<Intern>(entity =>
@@ -87,6 +103,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne(assignment => assignment.Team)
                 .WithMany(team => team.Assignments)
                 .HasForeignKey(assignment => assignment.TeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(assignment => assignment.Supervisor)
+                .WithMany(supervisor => supervisor.Assignments)
+                .HasForeignKey(assignment => assignment.SupervisorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

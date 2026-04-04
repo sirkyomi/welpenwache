@@ -31,6 +31,14 @@ export interface Team {
   description: string | null
   colorHex: string
   isArchived: boolean
+  supervisors: Supervisor[]
+}
+
+export interface Supervisor {
+  id: string
+  teamId: string
+  name: string
+  notes: string | null
 }
 
 export interface TeamAssignmentSummary {
@@ -38,6 +46,8 @@ export interface TeamAssignmentSummary {
   internshipId: string
   internId: string
   internName: string
+  supervisorId: string | null
+  supervisorName: string | null
   startDate: string
   endDate: string
 }
@@ -51,6 +61,8 @@ export interface Assignment {
   teamId: string
   teamName: string
   teamColorHex: string
+  supervisorId: string | null
+  supervisorName: string | null
   startDate: string
   endDate: string
 }

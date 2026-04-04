@@ -41,20 +41,35 @@ public sealed record TeamRequest(
     string Name,
     string? Description,
     string? ColorHex,
-    bool IsArchived);
+    bool IsArchived,
+    IReadOnlyList<SupervisorUpsertRequest>? Supervisors);
+
+public sealed record SupervisorUpsertRequest(
+    Guid? Id,
+    string Name,
+    string? Notes);
+
+public sealed record SupervisorResponse(
+    Guid Id,
+    Guid TeamId,
+    string Name,
+    string? Notes);
 
 public sealed record TeamResponse(
     Guid Id,
     string Name,
     string? Description,
     string ColorHex,
-    bool IsArchived);
+    bool IsArchived,
+    IReadOnlyList<SupervisorResponse> Supervisors);
 
 public sealed record TeamAssignmentSummaryResponse(
     Guid AssignmentId,
     Guid InternshipId,
     Guid InternId,
     string InternName,
+    Guid? SupervisorId,
+    string? SupervisorName,
     DateOnly StartDate,
     DateOnly EndDate);
 
@@ -64,10 +79,12 @@ public sealed record TeamDetailResponse(
     string? Description,
     string ColorHex,
     bool IsArchived,
+    IReadOnlyList<SupervisorResponse> Supervisors,
     IReadOnlyList<TeamAssignmentSummaryResponse> Assignments);
 
 public sealed record AssignmentRequest(
     Guid TeamId,
+    Guid? SupervisorId,
     DateOnly StartDate,
     DateOnly EndDate);
 
@@ -89,6 +106,8 @@ public sealed record AssignmentResponse(
     Guid TeamId,
     string TeamName,
     string TeamColorHex,
+    Guid? SupervisorId,
+    string? SupervisorName,
     DateOnly StartDate,
     DateOnly EndDate);
 

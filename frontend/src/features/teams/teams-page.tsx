@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, SquarePen } from 'lucide-react'
+import { Plus, SquarePen, Trash2 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -22,11 +22,18 @@ import { useAuth } from '@/features/auth/auth-provider'
 import { ApiError, api } from '@/lib/api'
 import type { Team } from '@/lib/types'
 
+interface SupervisorFormState {
+  id?: string
+  name: string
+  notes: string
+}
+
 interface TeamFormState {
   name: string
   description: string
   colorHex: string
   isArchived: boolean
+  supervisors: SupervisorFormState[]
 }
 
 const emptyForm: TeamFormState = {
@@ -34,6 +41,7 @@ const emptyForm: TeamFormState = {
   description: '',
   colorHex: '#2563EB',
   isArchived: false,
+  supervisors: [],
 }
 
 export function TeamsPage() {
@@ -59,6 +67,11 @@ export function TeamsPage() {
         description: form.description || null,
         colorHex: form.colorHex,
         isArchived: form.isArchived,
+        supervisors: form.supervisors.map((supervisor) => ({
+          ...(supervisor.id ? { id: supervisor.id } : {}),
+          name: supervisor.name,
+          notes: supervisor.notes || null,
+        })),
       }
 
       return editingTeam
@@ -93,8 +106,36 @@ export function TeamsPage() {
       description: team.description ?? '',
       colorHex: team.colorHex,
       isArchived: team.isArchived,
+      supervisors: team.supervisors.map((supervisor) => ({
+        id: supervisor.id,
+        name: supervisor.name,
+        notes: supervisor.notes ?? '',
+      })),
     })
     setOpen(true)
+  }
+
+  const updateSupervisor = (index: number, field: keyof SupervisorFormState, value: string) => {
+    setForm((current) => ({
+      ...current,
+      supervisors: current.supervisors.map((supervisor, currentIndex) =>
+        currentIndex === index ? { ...supervisor, [field]: value } : supervisor,
+      ),
+    }))
+  }
+
+  const addSupervisor = () => {
+    setForm((current) => ({
+      ...current,
+      supervisors: [...current.supervisors, { name: '', notes: '' }],
+    }))
+  }
+
+  const removeSupervisor = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      supervisors: current.supervisors.filter((_, currentIndex) => currentIndex !== index),
+    }))
   }
 
   useEffect(() => {
@@ -125,7 +166,7 @@ export function TeamsPage() {
           <div>
             <CardTitle>Teams</CardTitle>
             <CardDescription>
-              Lege Teams an und pflege Farben und Beschreibungen für die Kalenderübersicht.
+              Lege Teams an und pflege Farben, Beschreibungen und passende Betreuer für die Kalenderübersicht.
             </CardDescription>
           </div>
           {hasPermission('teams.manage') && (
@@ -136,7 +177,7 @@ export function TeamsPage() {
                   Team anlegen
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingTeam ? 'Team bearbeiten' : 'Neues Team'}</DialogTitle>
                   <DialogDescription>
@@ -179,6 +220,51 @@ export function TeamsPage() {
                       onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                     />
                   </div>
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-background/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Betreuer</p>
+                        <p className="text-xs text-muted-foreground">
+                          Mehrere Betreuer pro Team sind möglich und stehen später in Teamzuweisungen zur Auswahl.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={addSupervisor}>
+                        <Plus className="h-4 w-4" />
+                        Betreuer
+                      </Button>
+                    </div>
+
+                    {form.supervisors.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/80 px-3 py-4 text-sm text-muted-foreground">
+                        Noch keine Betreuer hinterlegt.
+                      </div>
+                    ) : null}
+
+                    {form.supervisors.map((supervisor, index) => (
+                      <div key={supervisor.id ?? `new-${index}`} className="space-y-3 rounded-2xl border border-border/70 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium">Betreuer {index + 1}</p>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removeSupervisor(index)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Name</Label>
+                          <Input
+                            value={supervisor.name}
+                            onChange={(event) => updateSupervisor(index, 'name', event.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Notiz</Label>
+                          <Textarea
+                            value={supervisor.notes}
+                            onChange={(event) => updateSupervisor(index, 'notes', event.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   <label className="flex items-center gap-3 text-sm">
                     <Checkbox
                       checked={form.isArchived}
@@ -219,8 +305,9 @@ export function TeamsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-xs font-medium text-muted-foreground">
-                  {team.isArchived ? 'Archiviert' : 'Aktiv'}
+                <div className="flex items-center justify-between gap-3 text-xs font-medium text-muted-foreground">
+                  <span>{team.isArchived ? 'Archiviert' : 'Aktiv'}</span>
+                  <span>{team.supervisors.length} Betreuer</span>
                 </div>
               </CardContent>
             </Card>
