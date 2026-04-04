@@ -1,0 +1,54 @@
+@import '@fontsource-variable/manrope';
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f8f1e7;
+  --color-foreground: #23150d;
+  --color-card: #fffaf3;
+  --color-card-foreground: #23150d;
+  --color-popover: #fffaf3;
+  --color-popover-foreground: #23150d;
+  --color-primary: #9e3d23;
+  --color-primary-foreground: #fff8f0;
+  --color-secondary: #e8d4b8;
+  --color-secondary-foreground: #3c2415;
+  --color-muted: #f0e1cf;
+  --color-muted-foreground: #6d4a33;
+  --color-accent: #d6eadf;
+  --color-accent-foreground: #1e4d38;
+  --color-destructive: #b42318;
+  --color-destructive-foreground: #fff8f0;
+  --color-border: #d8c2a7;
+  --color-input: #e3cfb6;
+  --color-ring: #9e3d23;
+  --radius: 1rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Manrope Variable', 'Segoe UI Variable', sans-serif;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top left, rgba(158, 61, 35, 0.16), transparent 28%),
+      radial-gradient(circle at top right, rgba(30, 77, 56, 0.14), transparent 26%),
+      linear-gradient(180deg, #f9f2e8 0%, #f6ede2 100%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}

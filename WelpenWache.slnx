@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/WelpenWache.Api/WelpenWache.Api.csproj" />
+  </Folder>
+</Solution>

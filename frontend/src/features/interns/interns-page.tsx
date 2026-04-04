@@ -1,0 +1,513 @@
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, SquarePen, UsersRound } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@/features/auth/auth-provider'
+import { ApiError, api } from '@/lib/api'
+import type { Intern } from '@/lib/types'
+
+interface AssignmentFormState {
+  teamId: string
+  startDate: string
+  endDate: string
+}
+
+interface InternshipFormState {
+  startDate: string
+  endDate: string
+  note: string
+  assignments: AssignmentFormState[]
+}
+
+interface InternFormState {
+  firstName: string
+  lastName: string
+  school: string
+  notes: string
+  internships: InternshipFormState[]
+}
+
+function createEmptyAssignment(): AssignmentFormState {
+  return {
+    teamId: '',
+    startDate: '',
+    endDate: '',
+  }
+}
+
+function createEmptyInternship(): InternshipFormState {
+  return {
+    startDate: '',
+    endDate: '',
+    note: '',
+    assignments: [createEmptyAssignment()],
+  }
+}
+
+function createEmptyForm(): InternFormState {
+  return {
+    firstName: '',
+    lastName: '',
+    school: '',
+    notes: '',
+    internships: [],
+  }
+}
+
+export function InternsPage() {
+  const { hasPermission, token } = useAuth()
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [editingIntern, setEditingIntern] = useState<Intern | null>(null)
+  const [form, setForm] = useState<InternFormState>(createEmptyForm)
+
+  const internsQuery = useQuery({
+    queryKey: ['interns'],
+    queryFn: () => api.getInterns(token!),
+    enabled: Boolean(token),
+  })
+
+  const teamsQuery = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => api.getTeams(token!),
+    enabled: Boolean(token),
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!token) {
+        return null
+      }
+
+      const payload = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        school: form.school || null,
+        notes: form.notes || null,
+        internships: form.internships.map((internship) => ({
+          startDate: internship.startDate,
+          endDate: internship.endDate,
+          note: internship.note || null,
+          assignments: internship.assignments.map((assignment) => ({
+            teamId: assignment.teamId,
+            startDate: assignment.startDate,
+            endDate: assignment.endDate,
+          })),
+        })),
+      }
+
+      return editingIntern
+        ? api.updateIntern(token, editingIntern.id, payload)
+        : api.createIntern(token, payload)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['interns'] })
+      await queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success(editingIntern ? 'Praktikant aktualisiert.' : 'Praktikant angelegt.')
+      setOpen(false)
+      setEditingIntern(null)
+      setForm(createEmptyForm())
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : 'Der Praktikant konnte nicht gespeichert werden.')
+    },
+  })
+
+  const interns = useMemo(() => internsQuery.data ?? [], [internsQuery.data])
+  const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
+
+  const openCreate = () => {
+    setEditingIntern(null)
+    setForm(createEmptyForm())
+    setOpen(true)
+  }
+
+  const openEdit = (intern: Intern) => {
+    setEditingIntern(intern)
+    setForm({
+      firstName: intern.firstName,
+      lastName: intern.lastName,
+      school: intern.school ?? '',
+      notes: intern.notes ?? '',
+      internships: intern.internships.map((internship) => ({
+        startDate: internship.startDate,
+        endDate: internship.endDate,
+        note: internship.note ?? '',
+        assignments: internship.assignments.map((assignment) => ({
+          teamId: assignment.teamId,
+          startDate: assignment.startDate,
+          endDate: assignment.endDate,
+        })),
+      })),
+    })
+    setOpen(true)
+  }
+
+  const updateInternship = (
+    internshipIndex: number,
+    field: keyof Omit<InternshipFormState, 'assignments'>,
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.map((internship, index) =>
+        index === internshipIndex ? { ...internship, [field]: value } : internship,
+      ),
+    }))
+  }
+
+  const updateAssignment = (
+    internshipIndex: number,
+    assignmentIndex: number,
+    field: keyof AssignmentFormState,
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.map((internship, index) =>
+        index === internshipIndex
+          ? {
+              ...internship,
+              assignments: internship.assignments.map((assignment, currentAssignmentIndex) =>
+                currentAssignmentIndex === assignmentIndex
+                  ? { ...assignment, [field]: value }
+                  : assignment,
+              ),
+            }
+          : internship,
+      ),
+    }))
+  }
+
+  const addInternship = () => {
+    setForm((current) => ({
+      ...current,
+      internships: [...current.internships, createEmptyInternship()],
+    }))
+  }
+
+  const removeInternship = (internshipIndex: number) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.filter((_, index) => index !== internshipIndex),
+    }))
+  }
+
+  const addAssignment = (internshipIndex: number) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.map((internship, index) =>
+        index === internshipIndex
+          ? { ...internship, assignments: [...internship.assignments, createEmptyAssignment()] }
+          : internship,
+      ),
+    }))
+  }
+
+  const removeAssignment = (internshipIndex: number, assignmentIndex: number) => {
+    setForm((current) => ({
+      ...current,
+      internships: current.internships.map((internship, index) =>
+        index === internshipIndex
+          ? {
+              ...internship,
+              assignments: internship.assignments.filter(
+                (_, currentAssignmentIndex) => currentAssignmentIndex !== assignmentIndex,
+              ),
+            }
+          : internship,
+      ),
+    }))
+  }
+
+  return (
+    <section className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Praktikanten</CardTitle>
+            <CardDescription>
+              Plane mehrere Praktikumszeiträume pro Person und lege Teamwechsel direkt innerhalb der Zeiträume fest.
+            </CardDescription>
+          </div>
+          {hasPermission('interns.manage') && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openCreate}>
+                  <Plus className="h-4 w-4" />
+                  Praktikant anlegen
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>{editingIntern ? 'Praktikant bearbeiten' : 'Neuen Praktikanten anlegen'}</DialogTitle>
+                  <DialogDescription>
+                    Lege Stammdaten an und verwalte darunter beliebig viele Praktikumszeiträume mit Teamzuweisungen.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form
+                  className="space-y-5"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void saveMutation.mutateAsync()
+                  }}
+                >
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="intern-first-name">Vorname</Label>
+                      <Input
+                        id="intern-first-name"
+                        value={form.firstName}
+                        onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="intern-last-name">Nachname</Label>
+                      <Input
+                        id="intern-last-name"
+                        value={form.lastName}
+                        onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="intern-school">Schule oder Herkunft</Label>
+                      <Input
+                        id="intern-school"
+                        value={form.school}
+                        onChange={(event) => setForm((current) => ({ ...current, school: event.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="intern-notes">Notizen</Label>
+                    <Textarea
+                      id="intern-notes"
+                      value={form.notes}
+                      onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold">Praktikumszeiträume</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Ein Zeitraum muss lückenlos mit Teamzuweisungen abgedeckt sein.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={addInternship}>
+                        <Plus className="h-4 w-4" />
+                        Zeitraum
+                      </Button>
+                    </div>
+
+                    {form.internships.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
+                        Noch kein Zeitraum angelegt.
+                      </div>
+                    ) : null}
+
+                    {form.internships.map((internship, internshipIndex) => (
+                      <div key={internshipIndex} className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold">Zeitraum {internshipIndex + 1}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Beispiel: 10.10. bis 20.10. mit Wechsel zwischen mehreren Teams.
+                            </p>
+                          </div>
+                          <Button type="button" variant="ghost" onClick={() => removeInternship(internshipIndex)}>
+                            Entfernen
+                          </Button>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Startdatum</Label>
+                            <Input
+                              type="date"
+                              value={internship.startDate}
+                              onChange={(event) => updateInternship(internshipIndex, 'startDate', event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Enddatum</Label>
+                            <Input
+                              type="date"
+                              value={internship.endDate}
+                              onChange={(event) => updateInternship(internshipIndex, 'endDate', event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Notiz zum Zeitraum</Label>
+                            <Input
+                              value={internship.note}
+                              onChange={(event) => updateInternship(internshipIndex, 'note', event.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h5 className="text-sm font-semibold">Teamzuweisungen</h5>
+                              <p className="text-xs text-muted-foreground">
+                                Ein Wechsel innerhalb einer Woche ist über das Datumsintervall möglich.
+                              </p>
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={() => addAssignment(internshipIndex)}>
+                              <Plus className="h-4 w-4" />
+                              Zuweisung
+                            </Button>
+                          </div>
+
+                          {internship.assignments.map((assignment, assignmentIndex) => (
+                            <div
+                              key={`${internshipIndex}-${assignmentIndex}`}
+                              className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-[1.4fr_1fr_1fr_auto]"
+                            >
+                              <div className="space-y-2">
+                                <Label>Team</Label>
+                                <Select
+                                  value={assignment.teamId}
+                                  onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'teamId', value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Team wählen" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {teams.map((team) => (
+                                      <SelectItem key={team.id} value={team.id}>
+                                        {team.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Von</Label>
+                                <Input
+                                  type="date"
+                                  value={assignment.startDate}
+                                  onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'startDate', event.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Bis</Label>
+                                <Input
+                                  type="date"
+                                  value={assignment.endDate}
+                                  onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'endDate', event.target.value)}
+                                />
+                              </div>
+                              <div className="flex items-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  disabled={internship.assignments.length === 1}
+                                  onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
+                                >
+                                  Entfernen
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
+                    {saveMutation.isPending ? 'Speichert ...' : 'Speichern'}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          {interns.map((intern) => (
+            <Card key={intern.id} className="border-border/70 bg-white/70">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <UsersRound className="h-4 w-4 text-primary" />
+                      {intern.fullName}
+                    </CardTitle>
+                    <CardDescription>{intern.school || 'Keine Schule hinterlegt.'}</CardDescription>
+                  </div>
+                  {hasPermission('interns.manage') ? (
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
+                      <SquarePen className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {intern.notes ? <p className="text-sm text-muted-foreground">{intern.notes}</p> : null}
+
+                <div className="space-y-3">
+                  {intern.internships.length === 0 ? (
+                    <div className="rounded-2xl bg-muted/70 px-3 py-3 text-sm text-muted-foreground">
+                      Noch kein Zeitraum geplant.
+                    </div>
+                  ) : (
+                    intern.internships.map((internship) => (
+                      <div key={internship.id} className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                        <div className="mb-2">
+                          <p className="text-sm font-semibold">
+                            {internship.startDate} bis {internship.endDate}
+                          </p>
+                          {internship.note ? (
+                            <p className="text-xs text-muted-foreground">{internship.note}</p>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                          {internship.assignments.map((assignment) => (
+                            <div key={assignment.id} className="rounded-2xl border border-border/70 bg-white/80 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold">{assignment.teamName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {assignment.startDate} bis {assignment.endDate}
+                                  </p>
+                                </div>
+                                <span
+                                  className="inline-block h-3 w-3 rounded-full"
+                                  style={{ backgroundColor: assignment.teamColorHex }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </CardContent>
+      </Card>
+    </section>
+  )
+}

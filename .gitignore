@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+frontend/node_modules/
+frontend/dist/
+
+backend/WelpenWache.Api/bin/
+backend/WelpenWache.Api/obj/
