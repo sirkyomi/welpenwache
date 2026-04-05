@@ -10,6 +10,7 @@
     <BundledAppVersion Condition="'$(NBGV_SemVer2)' != ''">$(NBGV_SemVer2)</BundledAppVersion>
     <BundledAppVersion Condition="'$(BundledAppVersion)' == '' and '$(Version)' != ''">$(Version)</BundledAppVersion>
     <BundledAppVersion Condition="'$(BundledAppVersion)' == ''">0.1.0-local</BundledAppVersion>
+    <SkipBundledFrontendBuild Condition="'$(SkipBundledFrontendBuild)' == ''">false</SkipBundledFrontendBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,10 +23,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
   </ItemGroup>
 
-  <Target Name="PublishBundledFrontend" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+  <Target Name="BuildBundledFrontend" BeforeTargets="Publish" Condition="'$(Configuration)' == 'Release' and '$(SkipBundledFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm ci" />
     <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm run build" EnvironmentVariables="APP_VERSION=$(BundledAppVersion)" />
+  </Target>
 
+  <Target Name="PublishBundledFrontend" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
     <Error
       Condition="!Exists('$(FrontendDistDir)\index.html')"
       Text="Das React-Frontend wurde nicht erfolgreich gebaut. Erwartet: $(FrontendDistDir)\index.html" />
