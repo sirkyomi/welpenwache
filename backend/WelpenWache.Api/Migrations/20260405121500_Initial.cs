@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace WelpenWache.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -53,6 +53,7 @@ namespace WelpenWache.Api.Migrations
                     PasswordHash = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     IsAdministrator = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ThemePreference = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false, defaultValue: "system"),
                     CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -82,6 +83,27 @@ namespace WelpenWache.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Supervisors",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TeamId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
+                    NormalizedName = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Supervisors", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Supervisors_Teams_TeamId",
+                        column: x => x.TeamId,
+                        principalTable: "Teams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserPermissions",
                 columns: table => new
                 {
@@ -106,6 +128,7 @@ namespace WelpenWache.Api.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     InternshipId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TeamId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SupervisorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     StartDate = table.Column<DateOnly>(type: "date", nullable: false),
                     EndDate = table.Column<DateOnly>(type: "date", nullable: false)
                 },
@@ -118,6 +141,12 @@ namespace WelpenWache.Api.Migrations
                         principalTable: "Internships",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Assignments_Supervisors_SupervisorId",
+                        column: x => x.SupervisorId,
+                        principalTable: "Supervisors",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Assignments_Teams_TeamId",
                         column: x => x.TeamId,
@@ -132,6 +161,11 @@ namespace WelpenWache.Api.Migrations
                 column: "InternshipId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Assignments_SupervisorId",
+                table: "Assignments",
+                column: "SupervisorId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Assignments_TeamId",
                 table: "Assignments",
                 column: "TeamId");
@@ -140,6 +174,12 @@ namespace WelpenWache.Api.Migrations
                 name: "IX_Internships_InternId",
                 table: "Internships",
                 column: "InternId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Supervisors_TeamId_NormalizedName",
+                table: "Supervisors",
+                columns: new[] { "TeamId", "NormalizedName" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Teams_NormalizedName",
@@ -167,13 +207,16 @@ namespace WelpenWache.Api.Migrations
                 name: "Internships");
 
             migrationBuilder.DropTable(
-                name: "Teams");
+                name: "Supervisors");
 
             migrationBuilder.DropTable(
                 name: "Users");
 
             migrationBuilder.DropTable(
                 name: "Interns");
+
+            migrationBuilder.DropTable(
+                name: "Teams");
         }
     }
 }

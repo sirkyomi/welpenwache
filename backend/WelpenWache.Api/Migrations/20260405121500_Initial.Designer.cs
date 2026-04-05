@@ -12,8 +12,8 @@ using WelpenWache.Api.Data;
 namespace WelpenWache.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260404105555_AddUserThemePreference")]
-    partial class AddUserThemePreference
+    [Migration("20260405121500_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -98,6 +98,9 @@ namespace WelpenWache.Api.Migrations
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("SupervisorId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TeamId")
                         .HasColumnType("uniqueidentifier");
 
@@ -105,9 +108,42 @@ namespace WelpenWache.Api.Migrations
 
                     b.HasIndex("InternshipId");
 
+                    b.HasIndex("SupervisorId");
+
                     b.HasIndex("TeamId");
 
                     b.ToTable("Assignments", (string)null);
+                });
+
+            modelBuilder.Entity("WelpenWache.Api.Domain.Supervisor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Supervisors", (string)null);
                 });
 
             modelBuilder.Entity("WelpenWache.Api.Domain.Team", b =>
@@ -224,6 +260,11 @@ namespace WelpenWache.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("WelpenWache.Api.Domain.Supervisor", "Supervisor")
+                        .WithMany("Assignments")
+                        .HasForeignKey("SupervisorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("WelpenWache.Api.Domain.Team", "Team")
                         .WithMany("Assignments")
                         .HasForeignKey("TeamId")
@@ -231,6 +272,19 @@ namespace WelpenWache.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Internship");
+
+                    b.Navigation("Supervisor");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("WelpenWache.Api.Domain.Supervisor", b =>
+                {
+                    b.HasOne("WelpenWache.Api.Domain.Team", "Team")
+                        .WithMany("Supervisors")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Team");
                 });
@@ -256,9 +310,16 @@ namespace WelpenWache.Api.Migrations
                     b.Navigation("Assignments");
                 });
 
+            modelBuilder.Entity("WelpenWache.Api.Domain.Supervisor", b =>
+                {
+                    b.Navigation("Assignments");
+                });
+
             modelBuilder.Entity("WelpenWache.Api.Domain.Team", b =>
                 {
                     b.Navigation("Assignments");
+
+                    b.Navigation("Supervisors");
                 });
 
             modelBuilder.Entity("WelpenWache.Api.Domain.UserAccount", b =>
