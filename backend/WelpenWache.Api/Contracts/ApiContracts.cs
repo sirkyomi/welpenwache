@@ -13,6 +13,8 @@ public sealed record AuthResponse(
     DateTime ExpiresAtUtc,
     UserResponse User);
 
+public sealed record AppVersionResponse(string Version);
+
 public sealed record UserResponse(
     Guid Id,
     string UserName,

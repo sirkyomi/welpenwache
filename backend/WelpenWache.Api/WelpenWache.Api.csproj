@@ -5,6 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>16b998ce-3296-49f5-aeab-e5fc2814ffb0</UserSecretsId>
+    <FrontendProjectDir>$(MSBuildProjectDirectory)\..\..\frontend</FrontendProjectDir>
+    <FrontendDistDir>$(FrontendProjectDir)\dist</FrontendDistDir>
+    <BundledAppVersion Condition="'$(NBGV_SemVer2)' != ''">$(NBGV_SemVer2)</BundledAppVersion>
+    <BundledAppVersion Condition="'$(BundledAppVersion)' == '' and '$(Version)' != ''">$(Version)</BundledAppVersion>
+    <BundledAppVersion Condition="'$(BundledAppVersion)' == ''">0.1.0-local</BundledAppVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,5 +21,25 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
   </ItemGroup>
+
+  <Target Name="PublishBundledFrontend" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm ci" />
+    <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm run build" EnvironmentVariables="APP_VERSION=$(BundledAppVersion)" />
+
+    <Error
+      Condition="!Exists('$(FrontendDistDir)\index.html')"
+      Text="Das React-Frontend wurde nicht erfolgreich gebaut. Erwartet: $(FrontendDistDir)\index.html" />
+
+    <ItemGroup>
+      <FrontendDistFiles Include="$(FrontendDistDir)\**\*" />
+    </ItemGroup>
+
+    <RemoveDir Directories="$(PublishDir)wwwroot" />
+    <MakeDir Directories="$(PublishDir)wwwroot" />
+    <Copy
+      SourceFiles="@(FrontendDistFiles)"
+      DestinationFiles="@(FrontendDistFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
