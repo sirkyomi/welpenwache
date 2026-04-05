@@ -23,6 +23,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Migrations\" />
+  </ItemGroup>
+
   <Target Name="BuildBundledFrontend" BeforeTargets="Publish" Condition="'$(Configuration)' == 'Release' and '$(SkipBundledFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm ci" />
     <Exec WorkingDirectory="$(FrontendProjectDir)" Command="npm run build" EnvironmentVariables="APP_VERSION=$(BundledAppVersion)" />
