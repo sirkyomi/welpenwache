@@ -23,6 +23,40 @@ Interne Webanwendung zur Verwaltung von Praktikanten mit React-Frontend, .NET 10
 - Node.js 24+
 - Docker Desktop für die einfache SQL-Server-Variante
 
+## Release-Artefakte
+
+- Jeder Release erstellt ein GitHub Release mit einem IIS-Paket als `welpenwache-iis-<version>.zip`.
+- Das IIS-Paket enthaelt bewusst keine `appsettings.Development.json`.
+- Zusaetzlich wird ein Docker-Image nach `ghcr.io/sirkyomi/welpenwache:<version>` und `ghcr.io/sirkyomi/welpenwache:latest` veroeffentlicht.
+
+## Compose-Beispiel fuer das Release-Image
+
+```yaml
+services:
+  welpenwache:
+    image: ghcr.io/sirkyomi/welpenwache:0.1.0
+    depends_on:
+      - sqlserver
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=WelpenWacheDb;User Id=sa;Password=<DEIN_PASSWORT>;TrustServerCertificate=True;"
+      Jwt__SigningKey: "<MINDESTENS_32_ZEICHEN_LANGER_GEHEIMSCHLUESSEL>"
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "<DEIN_PASSWORT>"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+volumes:
+  sqlserver-data:
+```
+
+Für einen echten Release-Einsatz die Image-Version im Compose-File auf die veröffentlichte Version setzen und nicht dauerhaft `latest` verwenden.
+
 ## Datenbank per Docker starten
 
 1. `.env.example` nach `.env` kopieren und ein eigenes starkes Passwort setzen.
