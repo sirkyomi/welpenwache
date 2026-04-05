@@ -56,6 +56,8 @@ npm run dev
 
 Das Frontend läuft standardmäßig auf `http://localhost:5173`.
 
+Backend und Frontend werden immer gemeinsam ausgeliefert und verwenden deshalb genau eine gemeinsame Produktversion. Angezeigt wird sie als SemVer plus 7-stelligem Commit-Hash.
+
 ## Initialer Start
 
 1. Frontend öffnen

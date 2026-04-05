@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build Release Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Compute semantic version
+        uses: dotnet/nbgv@master
+        with:
+          setAllVars: true
+
+      - name: Restore backend
+        run: dotnet restore backend/WelpenWache.Api/WelpenWache.Api.csproj
+
+      - name: Publish backend with bundled frontend
+        env:
+          APP_VERSION: ${{ env.NBGV_SemVer2 }}
+        run: dotnet publish backend/WelpenWache.Api/WelpenWache.Api.csproj -c Release -o artifacts/publish
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: welpenwache-${{ env.NBGV_SemVer2 }}
+          path: artifacts/publish
+          if-no-files-found: error

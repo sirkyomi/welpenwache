@@ -105,6 +105,10 @@ export interface CalendarMonth {
   days: CalendarDay[]
 }
 
+export interface ApplicationVersionResponse {
+  version: string
+}
+
 export interface ApiErrorPayload {
   code?: string
   message?: string

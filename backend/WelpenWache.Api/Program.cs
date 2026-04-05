@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -57,6 +58,7 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+var isDevelopment = app.Environment.IsDevelopment();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -64,11 +66,25 @@ using (var scope = app.Services.CreateScope())
     await dbContext.Database.MigrateAsync();
 }
 
-app.UseCors("frontend");
+if (isDevelopment)
+{
+    app.UseCors("frontend");
+}
+else
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/api/version", () =>
+{
+    var version = ResolveApplicationVersion();
+    return Results.Ok(new AppVersionResponse(version));
+});
 
 var setupGroup = app.MapGroup("/api/setup");
 setupGroup.MapGet("/status", async (ApplicationDbContext dbContext) =>
@@ -640,7 +656,59 @@ calendarGroup.MapGet("/month", async (int year, int month, ApplicationDbContext 
     return Results.Ok(new CalendarMonthResponse(year, month, days));
 });
 
+if (!isDevelopment)
+{
+    app.MapFallback("{*path:nonfile}", async context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var indexFile = Path.Combine(app.Environment.WebRootPath ?? string.Empty, "index.html");
+        if (!File.Exists(indexFile))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            await context.Response.WriteAsJsonAsync(new ApiError(
+                "FRONTEND_NOT_PUBLISHED",
+                "Die eingebettete Frontend-Anwendung wurde nicht gefunden."));
+            return;
+        }
+
+        await Results.File(indexFile, "text/html").ExecuteAsync(context);
+    });
+}
+
 app.Run();
+
+static string ResolveApplicationVersion()
+{
+    var informationalVersion = ThisAssembly.AssemblyInformationalVersion;
+    var commitId = ThisAssembly.GitCommitId;
+
+    if (!string.IsNullOrWhiteSpace(informationalVersion))
+    {
+        return FormatApplicationVersion(informationalVersion, commitId);
+    }
+
+    var entryAssembly = Assembly.GetEntryAssembly();
+    var assemblyVersion = entryAssembly?.GetName().Version?.ToString();
+    var version = string.IsNullOrWhiteSpace(assemblyVersion) ? "0.1.0-local" : assemblyVersion;
+    return FormatApplicationVersion(version, commitId);
+}
+
+static string FormatApplicationVersion(string version, string? commitId)
+{
+    var normalizedVersion = version.Split('+', 2)[0];
+    var shortCommitId = string.IsNullOrWhiteSpace(commitId)
+        ? null
+        : commitId[..Math.Min(7, commitId.Length)];
+
+    return string.IsNullOrWhiteSpace(shortCommitId)
+        ? normalizedVersion
+        : $"{normalizedVersion}+{shortCommitId}";
+}
 
 static string? ValidatePermissions(IEnumerable<string> permissions)
 {

@@ -1,4 +1,4 @@
-import { CalendarDays, LogOut, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
+import { CalendarDays, Github, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import { TeamDetailPage } from '@/features/teams/team-detail-page'
 import { useTheme } from '@/features/theme/theme-provider'
 import { TeamsPage } from '@/features/teams/teams-page'
 import { UsersPage } from '@/features/users/users-page'
+import { SidebarVersion, VersionSummary } from '@/features/version/version-summary'
 import { cn } from '@/lib/utils'
 
 function RestrictedRoute({
@@ -32,7 +33,7 @@ function RestrictedRoute({
 }
 
 export function AppShell() {
-  const { hasPermission, logout, user } = useAuth()
+  const { hasPermission, user } = useAuth()
   const { resolvedTheme, setThemePreference, themePreference } = useTheme()
   const canViewInterns = hasPermission('interns.view') || hasPermission('interns.manage')
   const canViewTeams = hasPermission('teams.view') || hasPermission('teams.manage')
@@ -53,9 +54,6 @@ export function AppShell() {
             <h1 className="text-2xl font-semibold">Praktikantenplanung</h1>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden rounded-2xl bg-secondary/70 px-3 py-2 text-sm text-secondary-foreground sm:block">
-              {user?.userName}
-            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Theme wechseln">
@@ -84,17 +82,23 @@ export function AppShell() {
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="outline" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-              Abmelden
+            <Button variant="outline" size="icon" asChild>
+              <a
+                href="https://github.com/sirkyomi/welpenwache"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub-Repository öffnen"
+              >
+                <Github className="h-4 w-4" />
+              </a>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="grid w-full items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
-        <aside className="rounded-3xl border border-border/80 bg-card/70 px-3 py-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100dvh-8rem)]">
-          <nav className="flex gap-2 overflow-x-auto lg:flex-col">
+      <div className="grid w-full items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:px-8">
+        <aside className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card/70 px-3 py-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100dvh-8rem)]">
+          <nav className="flex gap-2 overflow-x-auto lg:flex-1 lg:flex-col">
             {navigation.map((item) => (
               <NavLink
                 key={item.to}
@@ -112,6 +116,10 @@ export function AppShell() {
               </NavLink>
             ))}
           </nav>
+          <div className="space-y-3">
+            <VersionSummary />
+            <SidebarVersion />
+          </div>
         </aside>
 
         <main className="min-w-0">

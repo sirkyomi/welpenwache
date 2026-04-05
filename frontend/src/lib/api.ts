@@ -1,4 +1,5 @@
 import type {
+  ApplicationVersionResponse,
   ApiErrorPayload,
   AuthResponse,
   AuthUser,
@@ -11,7 +12,7 @@ import type {
   ThemePreference,
 } from '@/lib/types'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5150'
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:5150' : window.location.origin)
 
 export class ApiError extends Error {
   status: number
@@ -46,6 +47,7 @@ async function request<T>(path: string, init?: RequestInit, token?: string): Pro
 }
 
 export const api = {
+  getApplicationVersion: () => request<ApplicationVersionResponse>('/api/version'),
   getSetupStatus: () => request<SetupStatusResponse>('/api/setup/status'),
   createInitialAdmin: (payload: { userName: string; password: string }) =>
     request<AuthResponse>('/api/setup/admin', { method: 'POST', body: JSON.stringify(payload) }),
