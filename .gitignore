@@ -5,6 +5,7 @@ obj/
 *.suo
 .env
 .idea
+.dotnet-home
 artifacts
 appsettings.Development.json
 
