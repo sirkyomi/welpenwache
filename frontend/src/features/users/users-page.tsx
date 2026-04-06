@@ -17,17 +17,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import type { AuthUser, Permission } from '@/lib/types'
-
-const permissionOptions: Array<{ value: Permission; label: string }> = [
-  { value: 'interns.view', label: 'Praktikanten sehen' },
-  { value: 'interns.manage', label: 'Praktikanten bearbeiten' },
-  { value: 'teams.view', label: 'Teams sehen' },
-  { value: 'teams.manage', label: 'Teams verwalten' },
-]
-
-const permissionLabels = Object.fromEntries(permissionOptions.map((option) => [option.value, option.label]))
 
 interface UserFormState {
   userName: string
@@ -47,10 +39,20 @@ const emptyForm: UserFormState = {
 
 export function UsersPage() {
   const { token } = useAuth()
+  const { t } = useLanguage()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm)
+
+  const permissionOptions: Array<{ value: Permission; label: string }> = [
+    { value: 'interns.view', label: t('users.permissionInternsView') },
+    { value: 'interns.manage', label: t('users.permissionInternsManage') },
+    { value: 'teams.view', label: t('users.permissionTeamsView') },
+    { value: 'teams.manage', label: t('users.permissionTeamsManage') },
+  ]
+
+  const permissionLabels = Object.fromEntries(permissionOptions.map((option) => [option.value, option.label]))
 
   const usersQuery = useQuery({
     queryKey: ['users'],
@@ -84,13 +86,13 @@ export function UsersPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success(editingUser ? 'Benutzer aktualisiert.' : 'Benutzer angelegt.')
+      toast.success(editingUser ? t('users.updated') : t('users.created'))
       setOpen(false)
       setEditingUser(null)
       setForm(emptyForm)
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : 'Der Benutzer konnte nicht gespeichert werden.')
+      toast.error(error instanceof ApiError ? error.message : t('users.saveFailed'))
     },
   })
 
@@ -128,24 +130,20 @@ export function UsersPage() {
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Benutzer</CardTitle>
-            <CardDescription>
-              Administratoren können neue Konten anlegen und vorhandene Berechtigungen verwalten.
-            </CardDescription>
+            <CardTitle>{t('users.title')}</CardTitle>
+            <CardDescription>{t('users.description')}</CardDescription>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4" />
-                Benutzer anlegen
+                {t('users.create')}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
               <DialogHeader>
-                <DialogTitle>{editingUser ? 'Benutzer bearbeiten' : 'Neues Benutzerkonto'}</DialogTitle>
-                <DialogDescription>
-                  Konten bestehen aus Benutzername, Passwort und den verfügbaren Rechten.
-                </DialogDescription>
+                <DialogTitle>{editingUser ? t('users.editTitle') : t('users.createTitle')}</DialogTitle>
+                <DialogDescription>{t('users.formDescription')}</DialogDescription>
               </DialogHeader>
 
               <form
@@ -157,7 +155,7 @@ export function UsersPage() {
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="user-name">Benutzername</Label>
+                    <Label htmlFor="user-name">{t('auth.username')}</Label>
                     <Input
                       id="user-name"
                       value={form.userName}
@@ -165,13 +163,13 @@ export function UsersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="user-password">{editingUser ? 'Neues Passwort' : 'Passwort'}</Label>
+                    <Label htmlFor="user-password">{editingUser ? t('users.newPassword') : t('auth.password')}</Label>
                     <Input
                       id="user-password"
                       type="password"
                       value={form.password}
                       onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                      placeholder={editingUser ? 'Optional' : 'Mindestens 8 Zeichen'}
+                      placeholder={editingUser ? t('users.optional') : t('auth.passwordPlaceholder')}
                     />
                   </div>
                 </div>
@@ -182,21 +180,21 @@ export function UsersPage() {
                       checked={form.isAdministrator}
                       onCheckedChange={(checked) => setForm((current) => ({ ...current, isAdministrator: checked === true }))}
                     />
-                    Administrator
+                    {t('users.administrator')}
                   </label>
                   <label className="flex items-center gap-3 text-sm">
                     <Checkbox
                       checked={form.isActive}
                       onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: checked === true }))}
                     />
-                    Aktiv
+                    {t('users.active')}
                   </label>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-semibold">Rechte</h3>
-                    <p className="text-xs text-muted-foreground">Die Oberfläche zeigt nur erlaubte Bereiche an.</p>
+                    <h3 className="text-sm font-semibold">{t('users.permissions')}</h3>
+                    <p className="text-xs text-muted-foreground">{t('users.permissionsDescription')}</p>
                   </div>
                   <div className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-2">
                     {permissionOptions.map((permission) => (
@@ -212,7 +210,7 @@ export function UsersPage() {
                 </div>
 
                 <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? 'Speichert ...' : 'Speichern'}
+                  {saveMutation.isPending ? t('common.saving') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
@@ -226,7 +224,10 @@ export function UsersPage() {
                   <div>
                     <CardTitle>{user.userName}</CardTitle>
                     <CardDescription>
-                      {user.isAdministrator ? 'Administrator' : 'Benutzer'} · {user.isActive ? 'Aktiv' : 'Deaktiviert'}
+                      {t('users.accountStatus', {
+                        role: user.isAdministrator ? t('users.administrator') : t('users.roleUser'),
+                        status: user.isActive ? t('common.active') : t('common.inactive'),
+                      })}
                     </CardDescription>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>

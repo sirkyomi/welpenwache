@@ -11,7 +11,6 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { de } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -19,14 +18,15 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useLanguage } from '@/features/localization/language-provider'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 function buildCalendarGrid(currentMonth: Date) {
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
-  const gridStart = startOfWeek(monthStart, { locale: de, weekStartsOn: 1 })
-  const gridEnd = endOfWeek(monthEnd, { locale: de, weekStartsOn: 1 })
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
 
   const days: Date[] = []
   for (let cursor = gridStart; cursor <= gridEnd; cursor = addDays(cursor, 1)) {
@@ -38,6 +38,7 @@ function buildCalendarGrid(currentMonth: Date) {
 
 export function CalendarPage() {
   const { token } = useAuth()
+  const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
 
   const calendarQuery = useQuery({
@@ -58,18 +59,14 @@ export function CalendarPage() {
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Monatsübersicht</CardTitle>
-            <CardDescription>
-              Hier siehst du für jeden Tag, welcher Praktikant welchem Team zugeordnet ist.
-            </CardDescription>
+            <CardTitle>{t('calendar.title')}</CardTitle>
+            <CardDescription>{t('calendar.description')}</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setCurrentMonth((value) => subMonths(value, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="min-w-44 text-center text-sm font-semibold">
-              {format(currentMonth, 'MMMM yyyy', { locale: de })}
-            </div>
+            <div className="min-w-44 text-center text-sm font-semibold">{formatMonthYear(currentMonth)}</div>
             <Button variant="outline" size="sm" onClick={() => setCurrentMonth((value) => addMonths(value, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -77,7 +74,7 @@ export function CalendarPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-7 gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day) => (
+            {weekDayLabels.map((day) => (
               <div key={day} className="px-2 py-1">
                 {day}
               </div>
@@ -99,14 +96,14 @@ export function CalendarPage() {
                   )}
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold">{format(date, 'd.')}</div>
-                    <div className="text-xs text-muted-foreground">{format(date, 'EEE', { locale: de })}</div>
+                    <div className="text-sm font-semibold">{format(date, languagePreference === 'en' ? 'd' : 'd.')}</div>
+                    <div className="text-xs text-muted-foreground">{formatWeekday(date)}</div>
                   </div>
 
                   <div className="space-y-2">
                     {entries.length === 0 ? (
                       <div className="rounded-xl bg-muted/70 px-2 py-2 text-xs text-muted-foreground">
-                        Keine Zuweisungen
+                        {t('calendar.noAssignments')}
                       </div>
                     ) : (
                       entries.map((entry) => (

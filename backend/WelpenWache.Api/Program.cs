@@ -127,6 +127,7 @@ setupGroup.MapPost("/admin", async (
         NormalizedUserName = NormalizeKey(userName),
         PasswordHash = PasswordHasher.Hash(request.Password),
         IsAdministrator = true,
+        LanguagePreference = UserAccount.LanguageGerman,
         ThemePreference = UserAccount.ThemeSystem
     };
 
@@ -207,6 +208,32 @@ authGroup.MapPut("/theme", [Authorize] async (
     return Results.Ok(user.ToResponse());
 });
 
+authGroup.MapPut("/language", [Authorize] async (
+    UpdateLanguagePreferenceRequest request,
+    ClaimsPrincipal principal,
+    ApplicationDbContext dbContext) =>
+{
+    if (!UserAccount.IsValidLanguagePreference(request.LanguagePreference))
+    {
+        return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Die Spracheinstellung ist ungueltig."));
+    }
+
+    var userId = principal.GetUserId();
+    var user = await dbContext.Users
+        .Include(item => item.Permissions)
+        .SingleOrDefaultAsync(item => item.Id == userId);
+
+    if (user is null)
+    {
+        return Results.NotFound(new ApiError("USER_NOT_FOUND", "Der Benutzer wurde nicht gefunden."));
+    }
+
+    user.LanguagePreference = request.LanguagePreference;
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok(user.ToResponse());
+});
+
 var usersGroup = app.MapGroup("/api/users")
     .RequireAuthorization(Policies.AdminOnly);
 
@@ -248,6 +275,7 @@ usersGroup.MapPost("/", async (CreateUserRequest request, ApplicationDbContext d
         PasswordHash = PasswordHasher.Hash(request.Password),
         IsAdministrator = request.IsAdministrator,
         IsActive = request.IsActive,
+        LanguagePreference = UserAccount.LanguageGerman,
         ThemePreference = UserAccount.ThemeSystem
     };
 
@@ -998,6 +1026,7 @@ static class MappingExtensions
             user.IsAdministrator,
             user.IsActive,
             user.Permissions.Select(permission => permission.Permission).Order().ToList(),
+            NormalizeLanguagePreference(user.LanguagePreference),
             NormalizeThemePreference(user.ThemePreference));
 
     public static TeamResponse ToResponse(this Team team) =>
@@ -1102,4 +1131,9 @@ static class MappingExtensions
         UserAccount.IsValidThemePreference(value ?? string.Empty)
             ? value!
             : UserAccount.ThemeSystem;
+
+    private static string NormalizeLanguagePreference(string? value) =>
+        UserAccount.IsValidLanguagePreference(value ?? string.Empty)
+            ? value!
+            : UserAccount.LanguageGerman;
 }

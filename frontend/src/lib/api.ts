@@ -5,6 +5,7 @@ import type {
   AuthUser,
   CalendarMonth,
   Intern,
+  LanguagePreference,
   Permission,
   SetupStatusResponse,
   TeamDetail,
@@ -12,6 +13,7 @@ import type {
   ThemePreference,
 } from '@/lib/types'
 import { apiBaseUrl } from '@/lib/base-path'
+import { readStoredLanguagePreference } from '@/lib/language'
 
 const API_URL = apiBaseUrl
 
@@ -20,7 +22,13 @@ export class ApiError extends Error {
   payload?: ApiErrorPayload
 
   constructor(status: number, payload?: ApiErrorPayload) {
-    super(payload?.message ?? payload?.title ?? 'Die Anfrage konnte nicht verarbeitet werden.')
+    super(
+      payload?.message ??
+        payload?.title ??
+        (readStoredLanguagePreference() === 'en'
+          ? 'The request could not be processed.'
+          : 'Die Anfrage konnte nicht verarbeitet werden.'),
+    )
     this.name = 'ApiError'
     this.status = status
     this.payload = payload
@@ -28,10 +36,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  const languagePreference = readStoredLanguagePreference()
+
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(languagePreference ? { 'Accept-Language': languagePreference } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
@@ -55,6 +66,8 @@ export const api = {
   login: (payload: { userName: string; password: string }) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
   getMe: (token: string) => request<AuthUser>('/api/auth/me', undefined, token),
+  updateLanguagePreference: (token: string, languagePreference: LanguagePreference) =>
+    request<AuthUser>('/api/auth/language', { method: 'PUT', body: JSON.stringify({ languagePreference }) }, token),
   updateThemePreference: (token: string, themePreference: ThemePreference) =>
     request<AuthUser>('/api/auth/theme', { method: 'PUT', body: JSON.stringify({ themePreference }) }, token),
   getTeams: (token: string) => request<Team[]>('/api/teams', undefined, token),

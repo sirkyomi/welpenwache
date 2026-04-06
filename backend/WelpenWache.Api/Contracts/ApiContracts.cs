@@ -21,6 +21,7 @@ public sealed record UserResponse(
     bool IsAdministrator,
     bool IsActive,
     IReadOnlyList<string> Permissions,
+    string LanguagePreference,
     string ThemePreference);
 
 public sealed record CreateUserRequest(
@@ -38,6 +39,8 @@ public sealed record UpdateUserRequest(
     IReadOnlyList<string> Permissions);
 
 public sealed record UpdateThemePreferenceRequest(string ThemePreference);
+
+public sealed record UpdateLanguagePreferenceRequest(string LanguagePreference);
 
 public sealed record TeamRequest(
     string Name,

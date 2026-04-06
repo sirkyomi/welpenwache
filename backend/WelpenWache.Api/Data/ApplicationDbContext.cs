@@ -28,6 +28,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(user => user.UserName).HasMaxLength(100).IsRequired();
             entity.Property(user => user.NormalizedUserName).HasMaxLength(100).IsRequired();
             entity.Property(user => user.PasswordHash).HasMaxLength(200).IsRequired();
+            entity.Property(user => user.LanguagePreference)
+                .HasMaxLength(8)
+                .HasDefaultValue(UserAccount.LanguageGerman)
+                .IsRequired();
             entity.Property(user => user.ThemePreference)
                 .HasMaxLength(16)
                 .HasDefaultValue(UserAccount.ThemeSystem)

@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import type { Team } from '@/lib/types'
 
@@ -46,6 +47,7 @@ const emptyForm: TeamFormState = {
 
 export function TeamsPage() {
   const { hasPermission, token } = useAuth()
+  const { t } = useLanguage()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
@@ -80,13 +82,13 @@ export function TeamsPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['teams'] })
-      toast.success(editingTeam ? 'Team aktualisiert.' : 'Team angelegt.')
+      toast.success(editingTeam ? t('teams.updated') : t('teams.created'))
       setOpen(false)
       setEditingTeam(null)
       setForm(emptyForm)
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : 'Das Team konnte nicht gespeichert werden.')
+      toast.error(error instanceof ApiError ? error.message : t('teams.saveFailed'))
     },
   })
 
@@ -164,25 +166,21 @@ export function TeamsPage() {
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Teams</CardTitle>
-            <CardDescription>
-              Lege Teams an und pflege Farben, Beschreibungen und passende Betreuer für die Kalenderübersicht.
-            </CardDescription>
+            <CardTitle>{t('teams.title')}</CardTitle>
+            <CardDescription>{t('teams.description')}</CardDescription>
           </div>
           {hasPermission('teams.manage') && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button onClick={openCreate}>
                   <Plus className="h-4 w-4" />
-                  Team anlegen
+                  {t('teams.create')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingTeam ? 'Team bearbeiten' : 'Neues Team'}</DialogTitle>
-                  <DialogDescription>
-                    Alle Texte bleiben in der Oberfläche auf Deutsch, die API-Namen im Code auf Englisch.
-                  </DialogDescription>
+                  <DialogTitle>{editingTeam ? t('teams.editTitle') : t('teams.createTitle')}</DialogTitle>
+                  <DialogDescription>{t('teams.formDescription')}</DialogDescription>
                 </DialogHeader>
                 <form
                   className="space-y-4"
@@ -192,7 +190,7 @@ export function TeamsPage() {
                   }}
                 >
                   <div className="space-y-2">
-                    <Label htmlFor="team-name">Name</Label>
+                    <Label htmlFor="team-name">{t('common.name')}</Label>
                     <Input
                       id="team-name"
                       value={form.name}
@@ -200,7 +198,7 @@ export function TeamsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="team-color">Farbe</Label>
+                    <Label htmlFor="team-color">{t('common.color')}</Label>
                     <div className="flex items-center gap-3">
                       <Input
                         id="team-color"
@@ -213,7 +211,7 @@ export function TeamsPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="team-description">Beschreibung</Label>
+                    <Label htmlFor="team-description">{t('common.description')}</Label>
                     <Textarea
                       id="team-description"
                       value={form.description}
@@ -223,40 +221,38 @@ export function TeamsPage() {
                   <div className="space-y-3 rounded-2xl border border-border/70 bg-background/60 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">Betreuer</p>
-                        <p className="text-xs text-muted-foreground">
-                          Mehrere Betreuer pro Team sind möglich und stehen später in Teamzuweisungen zur Auswahl.
-                        </p>
+                        <p className="text-sm font-semibold">{t('teams.supervisors')}</p>
+                        <p className="text-xs text-muted-foreground">{t('teams.supervisorsDescription')}</p>
                       </div>
                       <Button type="button" variant="outline" size="sm" onClick={addSupervisor}>
                         <Plus className="h-4 w-4" />
-                        Betreuer
+                        {t('teams.addSupervisor')}
                       </Button>
                     </div>
 
                     {form.supervisors.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/80 px-3 py-4 text-sm text-muted-foreground">
-                        Noch keine Betreuer hinterlegt.
+                        {t('teams.noSupervisors')}
                       </div>
                     ) : null}
 
                     {form.supervisors.map((supervisor, index) => (
                       <div key={supervisor.id ?? `new-${index}`} className="space-y-3 rounded-2xl border border-border/70 p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium">Betreuer {index + 1}</p>
+                          <p className="text-sm font-medium">{t('teams.supervisorTitle', { index: index + 1 })}</p>
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeSupervisor(index)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
                         <div className="space-y-2">
-                          <Label>Name</Label>
+                          <Label>{t('common.name')}</Label>
                           <Input
                             value={supervisor.name}
                             onChange={(event) => updateSupervisor(index, 'name', event.target.value)}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Notiz</Label>
+                          <Label>{t('teams.note')}</Label>
                           <Textarea
                             value={supervisor.notes}
                             onChange={(event) => updateSupervisor(index, 'notes', event.target.value)}
@@ -270,10 +266,10 @@ export function TeamsPage() {
                       checked={form.isArchived}
                       onCheckedChange={(checked) => setForm((current) => ({ ...current, isArchived: checked === true }))}
                     />
-                    Team archivieren
+                    {t('teams.archiveTeam')}
                   </label>
                   <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
-                    {saveMutation.isPending ? 'Speichert ...' : 'Speichern'}
+                    {saveMutation.isPending ? t('common.saving') : t('common.save')}
                   </Button>
                 </form>
               </DialogContent>
@@ -295,7 +291,7 @@ export function TeamsPage() {
                         {team.name}
                       </Link>
                     </CardTitle>
-                    <CardDescription>{team.description || 'Keine Beschreibung hinterlegt.'}</CardDescription>
+                    <CardDescription>{team.description || t('teams.noDescription')}</CardDescription>
                   </div>
                   {hasPermission('teams.manage') && (
                     <Button variant="ghost" size="sm" onClick={() => openEdit(team)}>
@@ -306,8 +302,8 @@ export function TeamsPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between gap-3 text-xs font-medium text-muted-foreground">
-                  <span>{team.isArchived ? 'Archiviert' : 'Aktiv'}</span>
-                  <span>{team.supervisors.length} Betreuer</span>
+                  <span>{team.isArchived ? t('common.archived') : t('common.active')}</span>
+                  <span>{t('teams.storedSupervisors', { count: team.supervisors.length })}</span>
                 </div>
               </CardContent>
             </Card>

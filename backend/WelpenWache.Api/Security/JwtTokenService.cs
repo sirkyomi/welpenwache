@@ -49,6 +49,11 @@ public sealed class JwtTokenService(JwtOptions options)
                 user.IsAdministrator,
                 user.IsActive,
                 user.Permissions.Select(permission => permission.Permission).Order().ToList(),
-                user.ThemePreference));
+                UserAccount.IsValidLanguagePreference(user.LanguagePreference)
+                    ? user.LanguagePreference
+                    : UserAccount.LanguageGerman,
+                UserAccount.IsValidThemePreference(user.ThemePreference)
+                    ? user.ThemePreference
+                    : UserAccount.ThemeSystem));
     }
 }
