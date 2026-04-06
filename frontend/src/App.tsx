@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { SetupScreen, LoginScreen } from '@/features/auth/auth-screens'
 import { AuthProvider, useAuth } from '@/features/auth/auth-provider'
 import { ThemeProvider } from '@/features/theme/theme-provider'
+import { routerBaseName } from '@/lib/base-path'
 
 const queryClient = new QueryClient()
 
@@ -31,7 +32,7 @@ function AppContent() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={routerBaseName}>
       <AppShell />
     </BrowserRouter>
   )

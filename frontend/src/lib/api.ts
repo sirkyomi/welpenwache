@@ -11,8 +11,9 @@ import type {
   Team,
   ThemePreference,
 } from '@/lib/types'
+import { apiBaseUrl } from '@/lib/base-path'
 
-const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:5150' : window.location.origin)
+const API_URL = apiBaseUrl
 
 export class ApiError extends Error {
   status: number

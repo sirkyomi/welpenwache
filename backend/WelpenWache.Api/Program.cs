@@ -72,7 +72,18 @@ if (isDevelopment)
 }
 else
 {
-    app.UseDefaultFiles();
+    app.Use(async (context, next) =>
+    {
+        if (HttpMethods.IsGet(context.Request.Method)
+            && (context.Request.Path == "/" || context.Request.Path == "/index.html"))
+        {
+            await ServeFrontendIndexAsync(context);
+            return;
+        }
+
+        await next();
+    });
+
     app.UseStaticFiles();
 }
 
@@ -665,22 +676,35 @@ if (!isDevelopment)
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
-
-        var indexFile = Path.Combine(app.Environment.WebRootPath ?? string.Empty, "index.html");
-        if (!File.Exists(indexFile))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            await context.Response.WriteAsJsonAsync(new ApiError(
-                "FRONTEND_NOT_PUBLISHED",
-                "Die eingebettete Frontend-Anwendung wurde nicht gefunden."));
-            return;
-        }
-
-        await Results.File(indexFile, "text/html").ExecuteAsync(context);
+        
+        await ServeFrontendIndexAsync(context);
     });
 }
 
 app.Run();
+
+async Task ServeFrontendIndexAsync(HttpContext context)
+{
+    var indexFile = Path.Combine(app.Environment.WebRootPath ?? string.Empty, "index.html");
+    if (!File.Exists(indexFile))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        await context.Response.WriteAsJsonAsync(new ApiError(
+            "FRONTEND_NOT_PUBLISHED",
+            "Die eingebettete Frontend-Anwendung wurde nicht gefunden."));
+        return;
+    }
+
+    var basePath = context.Request.PathBase.HasValue
+        ? $"{context.Request.PathBase.Value!.TrimEnd('/')}/"
+        : "/";
+
+    var html = await File.ReadAllTextAsync(indexFile);
+    html = html.Replace("<base href=\"/\" />", $"<base href=\"{basePath}\" />");
+
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.WriteAsync(html);
+}
 
 static string ResolveApplicationVersion()
 {

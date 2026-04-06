@@ -14,6 +14,7 @@ const displayVersion = gitCommitIdShort ? `${appVersion}+${gitCommitIdShort}` : 
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: './',
   define: {
     __APP_VERSION__: JSON.stringify(displayVersion),
   },
