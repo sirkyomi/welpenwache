@@ -1,5 +1,6 @@
-import { CalendarDays, Github, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
+import { CalendarDays, Github, Languages, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -15,11 +16,13 @@ import { useAuth } from '@/features/auth/auth-provider'
 import { CalendarPage } from '@/features/calendar/calendar-page'
 import { InternDetailPage } from '@/features/interns/intern-detail-page'
 import { InternsPage } from '@/features/interns/interns-page'
+import { useLanguage } from '@/features/localization/language-provider'
 import { TeamDetailPage } from '@/features/teams/team-detail-page'
 import { useTheme } from '@/features/theme/theme-provider'
 import { TeamsPage } from '@/features/teams/teams-page'
 import { UsersPage } from '@/features/users/users-page'
 import { SidebarVersion, VersionSummary } from '@/features/version/version-summary'
+import type { LanguagePreference } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function RestrictedRoute({
@@ -34,15 +37,25 @@ function RestrictedRoute({
 
 export function AppShell() {
   const { hasPermission, user } = useAuth()
+  const { languagePreference, setLanguagePreference, t } = useLanguage()
   const { resolvedTheme, setThemePreference, themePreference } = useTheme()
   const canViewInterns = hasPermission('interns.view') || hasPermission('interns.manage')
   const canViewTeams = hasPermission('teams.view') || hasPermission('teams.manage')
 
+  const handleLanguageChange = async (value: LanguagePreference) => {
+    try {
+      await setLanguagePreference(value)
+      toast.success(t('common.settingsSaved'))
+    } catch {
+      toast.error(t('common.updateFailed'))
+    }
+  }
+
   const navigation = [
-    { to: '/', label: 'Kalender', icon: CalendarDays, visible: canViewInterns },
-    { to: '/praktikanten', label: 'Praktikanten', icon: UsersRound, visible: canViewInterns },
-    { to: '/teams', label: 'Teams', icon: Users, visible: canViewTeams },
-    { to: '/benutzer', label: 'Benutzer', icon: Shield, visible: Boolean(user?.isAdministrator) },
+    { to: '/', label: t('navigation.calendar'), icon: CalendarDays, visible: canViewInterns },
+    { to: '/praktikanten', label: t('navigation.interns'), icon: UsersRound, visible: canViewInterns },
+    { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
+    { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: Boolean(user?.isAdministrator) },
   ].filter((item) => item.visible)
 
   return (
@@ -51,17 +64,37 @@ export function AppShell() {
         <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-sm font-black uppercase tracking-[0.24em] text-primary">WelpenWache</p>
-            <h1 className="text-2xl font-semibold">Praktikantenplanung</h1>
+            <h1 className="text-2xl font-semibold">{t('app.subtitle')}</h1>
           </div>
           <div className="flex items-center gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Theme wechseln">
+                <Button variant="outline" size="sm" className="gap-2" aria-label={t('language.changeAria')}>
+                  <Languages className="h-4 w-4" />
+                  {languagePreference === 'en' ? t('language.shortEn') : t('language.shortDe')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{t('language.title')}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={languagePreference}
+                  onValueChange={(value) => void handleLanguageChange(value as LanguagePreference)}
+                >
+                  <DropdownMenuRadioItem value="de">{t('language.german')}</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="en">{t('language.english')}</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label={t('theme.changeAria')}>
                   {resolvedTheme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Darstellung</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('theme.title')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuRadioGroup
                   value={themePreference}
@@ -69,25 +102,26 @@ export function AppShell() {
                 >
                   <DropdownMenuRadioItem value="system">
                     <MonitorCog className="h-4 w-4" />
-                    Automatisch
+                    {t('common.automatic')}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="light">
                     <Sun className="h-4 w-4" />
-                    Hell
+                    {t('common.light')}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="dark">
                     <Moon className="h-4 w-4" />
-                    Dunkel
+                    {t('common.dark')}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+
             <Button variant="outline" size="icon" asChild>
               <a
                 href="https://github.com/sirkyomi/welpenwache"
                 target="_blank"
                 rel="noreferrer"
-                aria-label="GitHub-Repository öffnen"
+                aria-label={t('theme.gitHubAria')}
               >
                 <Github className="h-4 w-4" />
               </a>

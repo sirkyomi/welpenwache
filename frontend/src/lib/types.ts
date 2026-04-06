@@ -5,6 +5,7 @@ export type Permission =
   | 'teams.manage'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
+export type LanguagePreference = 'de' | 'en'
 
 export interface SetupStatusResponse {
   requiresSetup: boolean
@@ -16,6 +17,7 @@ export interface AuthUser {
   isAdministrator: boolean
   isActive: boolean
   permissions: Permission[]
+  languagePreference: LanguagePreference
   themePreference: ThemePreference
 }
 

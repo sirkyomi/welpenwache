@@ -8,7 +8,13 @@ import {
 } from 'react'
 
 import { api } from '@/lib/api'
-import type { AuthResponse, AuthUser, Permission, ThemePreference } from '@/lib/types'
+import type {
+  AuthResponse,
+  AuthUser,
+  LanguagePreference,
+  Permission,
+  ThemePreference,
+} from '@/lib/types'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -16,6 +22,7 @@ interface AuthContextValue {
   needsSetup: boolean
   initializing: boolean
   hasPermission: (permission: Permission) => boolean
+  updateLanguagePreference: (languagePreference: LanguagePreference) => Promise<void>
   updateThemePreference: (themePreference: ThemePreference) => Promise<void>
   login: (userName: string, password: string) => Promise<void>
   completeSetup: (userName: string, password: string) => Promise<void>
@@ -31,9 +38,14 @@ function normalizeThemePreference(themePreference: unknown): ThemePreference {
     : 'system'
 }
 
+function normalizeLanguagePreference(languagePreference: unknown): LanguagePreference {
+  return languagePreference === 'en' || languagePreference === 'de' ? languagePreference : 'de'
+}
+
 function normalizeUser(user: AuthUser): AuthUser {
   return {
     ...user,
+    languagePreference: normalizeLanguagePreference(user.languagePreference),
     themePreference: normalizeThemePreference(user.themePreference),
   }
 }
@@ -133,6 +145,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       initializing,
       hasPermission: (permission) =>
         Boolean(user?.isAdministrator || user?.permissions.includes(permission)),
+      updateLanguagePreference: async (languagePreference) => {
+        if (!token) {
+          return
+        }
+
+        const updatedUser = normalizeUser(await api.updateLanguagePreference(token, languagePreference))
+        setUser(updatedUser)
+        persistSession(
+          updatedUser && token
+            ? {
+                token,
+                expiresAtUtc: new Date().toISOString(),
+                user: updatedUser,
+              }
+            : null,
+        )
+      },
       updateThemePreference: async (themePreference) => {
         if (!token) {
           return

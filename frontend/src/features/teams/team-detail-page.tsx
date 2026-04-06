@@ -6,11 +6,12 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
-import { formatGermanDateRange } from '@/features/interns/intern-formatters'
+import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 
 export function TeamDetailPage() {
   const { hasPermission, token } = useAuth()
+  const { formatDateRange, t } = useLanguage()
   const { teamId } = useParams<{ teamId: string }>()
 
   const teamQuery = useQuery({
@@ -32,7 +33,7 @@ export function TeamDetailPage() {
     return (
       <section className="space-y-6">
         <Card>
-          <CardContent className="py-10 text-sm text-muted-foreground">Team wird geladen ...</CardContent>
+          <CardContent className="py-10 text-sm text-muted-foreground">{t('teams.loading')}</CardContent>
         </Card>
       </section>
     )
@@ -41,15 +42,15 @@ export function TeamDetailPage() {
   if (teamQuery.isError) {
     const message =
       teamQuery.error instanceof ApiError && teamQuery.error.status === 404
-        ? 'Das angeforderte Team wurde nicht gefunden.'
-        : 'Die Detailansicht konnte nicht geladen werden.'
+        ? t('teams.notFound')
+        : t('teams.detailsLoadFailed')
 
     return (
       <section className="space-y-6">
         <Button asChild variant="outline">
           <Link to="/teams">
             <ArrowLeft className="h-4 w-4" />
-            Zurück zur Übersicht
+            {t('common.backToOverview')}
           </Link>
         </Button>
 
@@ -68,17 +69,17 @@ export function TeamDetailPage() {
         <Button asChild variant="outline">
           <Link to="/">
             <ArrowLeft className="h-4 w-4" />
-            Zurück zum Kalender
+            {t('common.backToCalendar')}
           </Link>
         </Button>
         <Button asChild variant="ghost">
-          <Link to="/teams">Zurück zur Übersicht</Link>
+          <Link to="/teams">{t('common.backToOverview')}</Link>
         </Button>
         {hasPermission('teams.manage') ? (
           <Button asChild>
             <Link to={`/teams?edit=${team.id}`}>
               <SquarePen className="h-4 w-4" />
-              Bearbeiten
+              {t('common.edit')}
             </Link>
           </Button>
         ) : null}
@@ -97,7 +98,7 @@ export function TeamDetailPage() {
               <div>
                 <CardTitle className="text-3xl">{team.name}</CardTitle>
                 <CardDescription className="mt-1 text-sm">
-                  {team.description || 'Keine Beschreibung hinterlegt.'}
+                  {team.description || t('teams.noDescription')}
                 </CardDescription>
               </div>
             </div>
@@ -107,7 +108,7 @@ export function TeamDetailPage() {
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <Palette className="h-4 w-4 text-primary" />
-                Teamfarbe
+                {t('teams.teamColor')}
               </div>
               <div className="flex items-center gap-3">
                 <span
@@ -121,25 +122,25 @@ export function TeamDetailPage() {
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <UsersRound className="h-4 w-4 text-primary" />
-                Praktikanten
+                {t('teams.interns')}
               </div>
-              <p className="text-sm text-muted-foreground">{uniqueInternCount} verknüpft</p>
+              <p className="text-sm text-muted-foreground">{t('teams.linkedInterns', { count: uniqueInternCount })}</p>
             </div>
 
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <CalendarDays className="h-4 w-4 text-primary" />
-                Zeiträume
+                {t('teams.timeframes')}
               </div>
-              <p className="text-sm text-muted-foreground">{team.assignments.length} geplant</p>
+              <p className="text-sm text-muted-foreground">{t('teams.plannedAssignments', { count: team.assignments.length })}</p>
             </div>
 
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
                 <UserRound className="h-4 w-4 text-primary" />
-                Betreuer
+                {t('teams.supervisors')}
               </div>
-              <p className="text-sm text-muted-foreground">{team.supervisors.length} hinterlegt</p>
+              <p className="text-sm text-muted-foreground">{t('teams.storedSupervisors', { count: team.supervisors.length })}</p>
             </div>
           </div>
         </CardHeader>
@@ -148,17 +149,17 @@ export function TeamDetailPage() {
           <div className="rounded-3xl border border-border/70 bg-background/75 p-5">
             <div className="mb-3 flex items-center gap-2">
               <BadgeInfo className="h-4 w-4 text-primary" />
-              <h2 className="text-lg font-semibold">Betreuer im Team</h2>
+              <h2 className="text-lg font-semibold">{t('teams.supervisorsInTeam')}</h2>
             </div>
             {team.supervisors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Für dieses Team sind noch keine Betreuer angelegt.</p>
+              <p className="text-sm text-muted-foreground">{t('teams.noSupervisorsInTeam')}</p>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {team.supervisors.map((supervisor) => (
                   <div key={supervisor.id} className="rounded-2xl border border-border/70 bg-card/80 p-4">
                     <p className="font-semibold">{supervisor.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {supervisor.notes || 'Keine Notiz hinterlegt.'}
+                      {supervisor.notes || t('teams.noNote')}
                     </p>
                   </div>
                 ))}
@@ -168,25 +169,25 @@ export function TeamDetailPage() {
 
           {team.assignments.length === 0 ? (
             <div className="rounded-2xl bg-muted/70 px-4 py-4 text-sm text-muted-foreground">
-              Für dieses Team gibt es noch keine Zuweisungen.
+              {t('teams.noAssignments')}
             </div>
           ) : (
             team.assignments.map((assignment, index) => (
               <div key={assignment.assignmentId} className="rounded-3xl border border-border/70 bg-background/75 p-5">
                 <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold">Zuweisung {index + 1}</h2>
+                    <h2 className="text-lg font-semibold">{t('teams.assignmentTitle', { index: index + 1 })}</h2>
                     <p className="text-sm text-muted-foreground">
-                      {formatGermanDateRange(assignment.startDate, assignment.endDate)}
+                      {formatDateRange(assignment.startDate, assignment.endDate)}
                     </p>
                   </div>
                   <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                    {team.isArchived ? 'Archiviertes Team' : 'Aktives Team'}
+                    {team.isArchived ? t('teams.archivedTeam') : t('teams.activeTeam')}
                   </span>
                 </div>
 
                 <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
-                  <p className="text-sm text-muted-foreground">Praktikant</p>
+                  <p className="text-sm text-muted-foreground">{t('teams.intern')}</p>
                   <Link
                     to={`/praktikanten/${assignment.internId}`}
                     className="mt-1 inline-block text-base font-semibold transition-colors hover:text-primary focus:outline-none focus:text-primary"
@@ -194,9 +195,9 @@ export function TeamDetailPage() {
                     {assignment.internName}
                   </Link>
                   <div className="mt-3 border-t border-border/60 pt-3">
-                    <p className="text-sm text-muted-foreground">Betreuer</p>
+                    <p className="text-sm text-muted-foreground">{t('interns.supervisor')}</p>
                     <p className="text-sm font-medium">
-                      {assignment.supervisorName || 'Kein Betreuer zugeordnet.'}
+                      {assignment.supervisorName || t('teams.noSupervisorAssigned')}
                     </p>
                   </div>
                 </div>

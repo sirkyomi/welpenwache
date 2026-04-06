@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
-import { formatGermanDateRange } from '@/features/interns/intern-formatters'
+import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import type { Intern, Team } from '@/lib/types'
 
@@ -80,6 +80,7 @@ function getSupervisorsForTeam(teams: Team[], teamId: string) {
 
 export function InternsPage() {
   const { hasPermission, token } = useAuth()
+  const { formatDateRange, t } = useLanguage()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
@@ -130,13 +131,13 @@ export function InternsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['interns'] })
       await queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      toast.success(editingIntern ? 'Praktikant aktualisiert.' : 'Praktikant angelegt.')
+      toast.success(editingIntern ? t('interns.updated') : t('interns.created'))
       setOpen(false)
       setEditingIntern(null)
       setForm(createEmptyForm())
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : 'Der Praktikant konnte nicht gespeichert werden.')
+      toast.error(error instanceof ApiError ? error.message : t('interns.saveFailed'))
     },
   })
 
@@ -152,10 +153,10 @@ export function InternsPage() {
       await queryClient.invalidateQueries({ queryKey: ['interns'] })
       await queryClient.invalidateQueries({ queryKey: ['calendar'] })
       setInternPendingDelete(null)
-      toast.success('Praktikant gelöscht.')
+      toast.success(t('interns.deleted'))
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : 'Der Praktikant konnte nicht gelöscht werden.')
+      toast.error(error instanceof ApiError ? error.message : t('interns.deleteFailed'))
     },
   })
 
@@ -334,11 +335,11 @@ export function InternsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Praktikant löschen</DialogTitle>
+            <DialogTitle>{t('interns.deleteTitle')}</DialogTitle>
             <DialogDescription>
               {internPendingDelete
-                ? `Soll "${internPendingDelete.fullName}" wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.`
-                : 'Soll dieser Praktikant wirklich gelöscht werden?'}
+                ? t('interns.deleteDescription', { name: internPendingDelete.fullName })
+                : t('interns.deleteDescriptionFallback')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -348,7 +349,7 @@ export function InternsPage() {
               onClick={() => setInternPendingDelete(null)}
               disabled={deleteMutation.isPending}
             >
-              Abbrechen
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -356,7 +357,7 @@ export function InternsPage() {
               onClick={() => internPendingDelete && void deleteIntern(internPendingDelete)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Löscht ...' : 'Löschen'}
+              {deleteMutation.isPending ? t('common.deleting') : t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -365,25 +366,21 @@ export function InternsPage() {
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Praktikanten</CardTitle>
-            <CardDescription>
-              Plane mehrere Praktikumszeiträume pro Person und lege Teamwechsel direkt innerhalb der Zeiträume fest.
-            </CardDescription>
+            <CardTitle>{t('interns.title')}</CardTitle>
+            <CardDescription>{t('interns.description')}</CardDescription>
           </div>
           {hasPermission('interns.manage') && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button onClick={openCreate}>
                   <Plus className="h-4 w-4" />
-                  Praktikant anlegen
+                  {t('interns.create')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
                 <DialogHeader>
-                  <DialogTitle>{editingIntern ? 'Praktikant bearbeiten' : 'Neuen Praktikanten anlegen'}</DialogTitle>
-                  <DialogDescription>
-                    Lege Stammdaten an und verwalte darunter beliebig viele Praktikumszeiträume mit Teamzuweisungen.
-                  </DialogDescription>
+                  <DialogTitle>{editingIntern ? t('interns.editTitle') : t('interns.createTitle')}</DialogTitle>
+                  <DialogDescription>{t('interns.formDescription')}</DialogDescription>
                 </DialogHeader>
 
                 <form
@@ -395,7 +392,7 @@ export function InternsPage() {
                 >
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label htmlFor="intern-first-name">Vorname</Label>
+                      <Label htmlFor="intern-first-name">{t('interns.firstName')}</Label>
                       <Input
                         id="intern-first-name"
                         value={form.firstName}
@@ -403,7 +400,7 @@ export function InternsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="intern-last-name">Nachname</Label>
+                      <Label htmlFor="intern-last-name">{t('interns.lastName')}</Label>
                       <Input
                         id="intern-last-name"
                         value={form.lastName}
@@ -411,7 +408,7 @@ export function InternsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="intern-school">Schule oder Herkunft</Label>
+                      <Label htmlFor="intern-school">{t('interns.school')}</Label>
                       <Input
                         id="intern-school"
                         value={form.school}
@@ -421,7 +418,7 @@ export function InternsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="intern-notes">Notizen</Label>
+                    <Label htmlFor="intern-notes">{t('interns.notes')}</Label>
                     <Textarea
                       id="intern-notes"
                       value={form.notes}
@@ -432,20 +429,18 @@ export function InternsPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold">Praktikumszeiträume</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Ein Zeitraum muss lückenlos mit Teamzuweisungen abgedeckt sein.
-                        </p>
+                        <h3 className="text-sm font-semibold">{t('interns.internships')}</h3>
+                        <p className="text-xs text-muted-foreground">{t('interns.internshipsDescription')}</p>
                       </div>
                       <Button type="button" variant="outline" size="sm" onClick={addInternship}>
                         <Plus className="h-4 w-4" />
-                        Zeitraum
+                        {t('interns.addInternship')}
                       </Button>
                     </div>
 
                     {form.internships.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
-                        Noch kein Zeitraum angelegt.
+                        {t('interns.noInternshipsYet')}
                       </div>
                     ) : null}
 
@@ -453,19 +448,17 @@ export function InternsPage() {
                       <div key={internshipIndex} className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <h4 className="text-sm font-semibold">Zeitraum {internshipIndex + 1}</h4>
-                            <p className="text-xs text-muted-foreground">
-                              Beispiel: 10.10. bis 20.10. mit Wechsel zwischen mehreren Teams.
-                            </p>
+                            <h4 className="text-sm font-semibold">{t('interns.internshipTitle', { index: internshipIndex + 1 })}</h4>
+                            <p className="text-xs text-muted-foreground">{t('interns.internshipExample')}</p>
                           </div>
                           <Button type="button" variant="ghost" onClick={() => removeInternship(internshipIndex)}>
-                            Entfernen
+                            {t('common.remove')}
                           </Button>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>Startdatum</Label>
+                            <Label>{t('interns.startDate')}</Label>
                             <Input
                               type="date"
                               value={internship.startDate}
@@ -473,7 +466,7 @@ export function InternsPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Enddatum</Label>
+                            <Label>{t('interns.endDate')}</Label>
                             <Input
                               type="date"
                               value={internship.endDate}
@@ -481,7 +474,7 @@ export function InternsPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Notiz zum Zeitraum</Label>
+                            <Label>{t('interns.internshipNote')}</Label>
                             <Input
                               value={internship.note}
                               onChange={(event) => updateInternship(internshipIndex, 'note', event.target.value)}
@@ -492,14 +485,12 @@ export function InternsPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h5 className="text-sm font-semibold">Teamzuweisungen</h5>
-                              <p className="text-xs text-muted-foreground">
-                                Ein Wechsel innerhalb einer Woche ist über das Datumsintervall möglich.
-                              </p>
+                              <h5 className="text-sm font-semibold">{t('interns.assignments')}</h5>
+                              <p className="text-xs text-muted-foreground">{t('interns.assignmentsDescription')}</p>
                             </div>
                             <Button type="button" variant="outline" size="sm" onClick={() => addAssignment(internshipIndex)}>
                               <Plus className="h-4 w-4" />
-                              Zuweisung
+                              {t('interns.addAssignment')}
                             </Button>
                           </div>
 
@@ -512,13 +503,13 @@ export function InternsPage() {
                                 className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-[1.2fr_1.2fr_1fr_1fr_auto]"
                               >
                                 <div className="space-y-2">
-                                  <Label>Team</Label>
+                                  <Label>{t('interns.team')}</Label>
                                   <Select
                                     value={assignment.teamId}
                                     onValueChange={(value) => updateAssignmentTeam(internshipIndex, assignmentIndex, value)}
                                   >
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Team wählen" />
+                                      <SelectValue placeholder={t('interns.teamPlaceholder')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {teams.map((team) => (
@@ -530,7 +521,7 @@ export function InternsPage() {
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Betreuer</Label>
+                                  <Label>{t('interns.supervisor')}</Label>
                                   <Select
                                     value={assignment.supervisorId}
                                     onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'supervisorId', value)}
@@ -540,10 +531,10 @@ export function InternsPage() {
                                       <SelectValue
                                         placeholder={
                                           !assignment.teamId
-                                            ? 'Erst Team wählen'
+                                            ? t('interns.supervisorChooseTeam')
                                             : supervisors.length === 0
-                                              ? 'Keine Betreuer verfügbar'
-                                              : 'Betreuer wählen'
+                                              ? t('interns.supervisorUnavailable')
+                                              : t('interns.supervisorPlaceholder')
                                         }
                                       />
                                     </SelectTrigger>
@@ -557,7 +548,7 @@ export function InternsPage() {
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Von</Label>
+                                  <Label>{t('interns.from')}</Label>
                                   <Input
                                     type="date"
                                     value={assignment.startDate}
@@ -565,7 +556,7 @@ export function InternsPage() {
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Bis</Label>
+                                  <Label>{t('interns.until')}</Label>
                                   <Input
                                     type="date"
                                     value={assignment.endDate}
@@ -579,7 +570,7 @@ export function InternsPage() {
                                     disabled={internship.assignments.length === 1}
                                     onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
                                   >
-                                    Entfernen
+                                    {t('common.remove')}
                                   </Button>
                                 </div>
                               </div>
@@ -591,7 +582,7 @@ export function InternsPage() {
                   </div>
 
                   <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
-                    {saveMutation.isPending ? 'Speichert ...' : 'Speichern'}
+                    {saveMutation.isPending ? t('common.saving') : t('common.save')}
                   </Button>
                 </form>
               </DialogContent>
@@ -613,7 +604,7 @@ export function InternsPage() {
                         {intern.fullName}
                       </Link>
                     </CardTitle>
-                    <CardDescription>{intern.school || 'Keine Schule hinterlegt.'}</CardDescription>
+                    <CardDescription>{intern.school || t('interns.schoolMissing')}</CardDescription>
                   </div>
                   {hasPermission('interns.manage') ? (
                     <div className="flex items-center gap-1">
@@ -638,18 +629,16 @@ export function InternsPage() {
                 <div className="space-y-3">
                   {intern.internships.length === 0 ? (
                     <div className="rounded-2xl bg-muted/70 px-3 py-3 text-sm text-muted-foreground">
-                      Noch kein Zeitraum geplant.
+                      {t('interns.noPlannedInternships')}
                     </div>
                   ) : (
                     intern.internships.map((internship) => (
                       <div key={internship.id} className="rounded-2xl border border-border/70 bg-background/70 p-3">
                         <div className="mb-2">
                           <p className="text-sm font-semibold">
-                            {formatGermanDateRange(internship.startDate, internship.endDate)}
+                            {formatDateRange(internship.startDate, internship.endDate)}
                           </p>
-                          {internship.note ? (
-                            <p className="text-xs text-muted-foreground">{internship.note}</p>
-                          ) : null}
+                          {internship.note ? <p className="text-xs text-muted-foreground">{internship.note}</p> : null}
                         </div>
 
                         <div className="space-y-2">
@@ -659,10 +648,12 @@ export function InternsPage() {
                                 <div>
                                   <p className="text-sm font-semibold">{assignment.teamName}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    {formatGermanDateRange(assignment.startDate, assignment.endDate)}
+                                    {formatDateRange(assignment.startDate, assignment.endDate)}
                                   </p>
                                   <p className="mt-1 text-xs text-muted-foreground">
-                                    Betreuer: {assignment.supervisorName || 'Nicht zugeordnet'}
+                                    {t('interns.supervisorPrefix', {
+                                      name: assignment.supervisorName || t('interns.supervisorMissing'),
+                                    })}
                                   </p>
                                 </div>
                                 <span

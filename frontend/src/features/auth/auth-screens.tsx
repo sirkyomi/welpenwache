@@ -1,13 +1,61 @@
 import { useState } from 'react'
-import { ShieldCheck, UserRoundCog } from 'lucide-react'
+import { Languages, ShieldCheck, UserRoundCog } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError } from '@/lib/api'
+import type { LanguagePreference } from '@/lib/types'
+
+function AuthLanguageSwitcher() {
+  const { languagePreference, setLanguagePreference, t } = useLanguage()
+
+  const handleLanguageChange = async (value: LanguagePreference) => {
+    try {
+      await setLanguagePreference(value)
+      toast.success(t('common.settingsSaved'))
+    } catch {
+      toast.error(t('common.updateFailed'))
+    }
+  }
+
+  return (
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2" aria-label={t('language.changeAria')}>
+            <Languages className="h-4 w-4" />
+            {languagePreference === 'en' ? t('language.shortEn') : t('language.shortDe')}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>{t('language.title')}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioGroup
+            value={languagePreference}
+            onValueChange={(value) => void handleLanguageChange(value as LanguagePreference)}
+          >
+            <DropdownMenuRadioItem value="de">{t('language.german')}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="en">{t('language.english')}</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
 
 function AuthCard({
   icon,
@@ -24,6 +72,7 @@ function AuthCard({
   successMessage: string
   onSubmit: (userName: string, password: string) => Promise<void>
 }) {
+  const { t } = useLanguage()
   const [userName, setUserName] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -36,8 +85,7 @@ function AuthCard({
       await onSubmit(userName, password)
       toast.success(successMessage)
     } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : 'Die Aktion konnte nicht abgeschlossen werden.'
+      const message = error instanceof ApiError ? error.message : t('auth.actionFailed')
       toast.error(message)
     } finally {
       setSubmitting(false)
@@ -58,28 +106,28 @@ function AuthCard({
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="userName">Benutzername</Label>
+            <Label htmlFor="userName">{t('auth.username')}</Label>
             <Input
               id="userName"
               value={userName}
               onChange={(event) => setUserName(event.target.value)}
-              placeholder="z. B. admin"
+              placeholder={t('auth.usernamePlaceholder')}
               autoComplete="username"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Passwort</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Mindestens 8 Zeichen"
+              placeholder={t('auth.passwordPlaceholder')}
               autoComplete="current-password"
             />
           </div>
           <Button className="w-full" type="submit" disabled={submitting}>
-            {submitting ? 'Bitte warten ...' : submitLabel}
+            {submitting ? t('auth.wait') : submitLabel}
           </Button>
         </form>
       </CardContent>
@@ -89,34 +137,42 @@ function AuthCard({
 
 export function SetupScreen() {
   const { completeSetup } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <AuthCard
-        icon={<UserRoundCog className="h-6 w-6" />}
-        title="Ersteinrichtung"
-        description="Lege den ersten Administrator für WelpenWache an."
-        submitLabel="Administrator anlegen"
-        successMessage="Administrator wurde angelegt."
-        onSubmit={completeSetup}
-      />
+      <div className="w-full max-w-md space-y-4">
+        <AuthLanguageSwitcher />
+        <AuthCard
+          icon={<UserRoundCog className="h-6 w-6" />}
+          title={t('auth.setupTitle')}
+          description={t('auth.setupDescription')}
+          submitLabel={t('auth.setupSubmit')}
+          successMessage={t('auth.setupSuccess')}
+          onSubmit={completeSetup}
+        />
+      </div>
     </main>
   )
 }
 
 export function LoginScreen() {
   const { login } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <AuthCard
-        icon={<ShieldCheck className="h-6 w-6" />}
-        title="Anmelden"
-        description="Melde dich mit deinem Benutzerkonto an."
-        submitLabel="Einloggen"
-        successMessage="Anmeldung erfolgreich."
-        onSubmit={login}
-      />
+      <div className="w-full max-w-md space-y-4">
+        <AuthLanguageSwitcher />
+        <AuthCard
+          icon={<ShieldCheck className="h-6 w-6" />}
+          title={t('auth.loginTitle')}
+          description={t('auth.loginDescription')}
+          submitLabel={t('auth.loginSubmit')}
+          successMessage={t('auth.loginSuccess')}
+          onSubmit={login}
+        />
+      </div>
     </main>
   )
 }

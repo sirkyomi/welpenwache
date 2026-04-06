@@ -2,6 +2,9 @@ namespace WelpenWache.Api.Domain;
 
 public sealed class UserAccount
 {
+    public const string LanguageGerman = "de";
+    public const string LanguageEnglish = "en";
+
     public const string ThemeSystem = "system";
     public const string ThemeLight = "light";
     public const string ThemeDark = "dark";
@@ -18,6 +21,8 @@ public sealed class UserAccount
 
     public bool IsActive { get; set; } = true;
 
+    public string LanguagePreference { get; set; } = LanguageGerman;
+
     public string ThemePreference { get; set; } = ThemeSystem;
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
@@ -27,5 +32,10 @@ public sealed class UserAccount
     public static bool IsValidThemePreference(string value)
     {
         return value is ThemeSystem or ThemeLight or ThemeDark;
+    }
+
+    public static bool IsValidLanguagePreference(string value)
+    {
+        return value is LanguageGerman or LanguageEnglish;
     }
 }
