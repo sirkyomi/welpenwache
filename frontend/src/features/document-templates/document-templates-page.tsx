@@ -64,13 +64,14 @@ const assignmentPlaceholders = [
 ] as const
 
 export function DocumentTemplatesPage() {
-  const { token } = useAuth()
+  const { hasPermission, token } = useAuth()
   const { formatDate, t } = useLanguage()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null)
   const [templatePendingDelete, setTemplatePendingDelete] = useState<DocumentTemplate | null>(null)
   const [form, setForm] = useState<DocumentTemplateFormState>(emptyForm)
+  const canManageTemplates = hasPermission('documents.manage')
 
   const templatesQuery = useQuery({
     queryKey: ['document-templates'],
@@ -230,128 +231,136 @@ export function DocumentTemplatesPage() {
             <CardTitle>{t('documentTemplates.title')}</CardTitle>
             <CardDescription>{t('documentTemplates.description')}</CardDescription>
           </div>
-          <Dialog
-            open={open}
-            onOpenChange={(nextOpen) => {
-              setOpen(nextOpen)
+          {canManageTemplates ? (
+            <Dialog
+              open={open}
+              onOpenChange={(nextOpen) => {
+                setOpen(nextOpen)
 
-              if (!nextOpen) {
-                setEditingTemplate(null)
-                setForm(emptyForm)
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" />
-                {t('documentTemplates.create')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingTemplate ? t('documentTemplates.editTitle') : t('documentTemplates.createTitle')}
-                </DialogTitle>
-                <DialogDescription>{t('documentTemplates.formDescription')}</DialogDescription>
-              </DialogHeader>
-
-              <form
-                className="space-y-5"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void saveMutation.mutateAsync()
-                }}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="template-name">{t('documentTemplates.name')}</Label>
-                    <Input
-                      id="template-name"
-                      value={form.name}
-                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="template-language">{t('documentTemplates.language')}</Label>
-                    <Select
-                      value={form.language}
-                      onValueChange={(value) =>
-                        setForm((current) => ({ ...current, language: value as LanguagePreference }))
-                      }
-                    >
-                      <SelectTrigger id="template-language">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="de">{t('language.german')}</SelectItem>
-                        <SelectItem value="en">{t('language.english')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="template-purpose">{t('documentTemplates.purpose')}</Label>
-                    <Select
-                      value={form.purpose}
-                      onValueChange={(value) =>
-                        setForm((current) => ({ ...current, purpose: value as DocumentTemplatePurpose }))
-                      }
-                    >
-                      <SelectTrigger id="template-purpose">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="completion">{t('documentTemplates.purposeCompletion')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="template-file">
-                      {editingTemplate ? t('documentTemplates.replaceFile') : t('documentTemplates.file')}
-                    </Label>
-                    <Input
-                      id="template-file"
-                      type="file"
-                      accept=".docx"
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          file: event.target.files?.[0] ?? null,
-                        }))
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {editingTemplate
-                        ? t('documentTemplates.fileOptional', {
-                            fileName: editingTemplate.originalFileName,
-                          })
-                        : t('documentTemplates.fileHint')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border/70 p-4">
-                  <label className="flex items-center gap-3 text-sm">
-                    <Checkbox
-                      checked={form.isActive}
-                      onCheckedChange={(checked) =>
-                        setForm((current) => ({ ...current, isActive: checked === true }))
-                      }
-                    />
-                    {t('documentTemplates.active')}
-                  </label>
-                </div>
-
-                <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? t('common.saving') : t('common.save')}
+                if (!nextOpen) {
+                  setEditingTemplate(null)
+                  setForm(emptyForm)
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button onClick={openCreate}>
+                  <Plus className="h-4 w-4" />
+                  {t('documentTemplates.create')}
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingTemplate ? t('documentTemplates.editTitle') : t('documentTemplates.createTitle')}
+                  </DialogTitle>
+                  <DialogDescription>{t('documentTemplates.formDescription')}</DialogDescription>
+                </DialogHeader>
+
+                <form
+                  className="space-y-5"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void saveMutation.mutateAsync()
+                  }}
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="template-name">{t('documentTemplates.name')}</Label>
+                      <Input
+                        id="template-name"
+                        value={form.name}
+                        onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="template-language">{t('documentTemplates.language')}</Label>
+                      <Select
+                        value={form.language}
+                        onValueChange={(value) =>
+                          setForm((current) => ({ ...current, language: value as LanguagePreference }))
+                        }
+                      >
+                        <SelectTrigger id="template-language">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="de">{t('language.german')}</SelectItem>
+                          <SelectItem value="en">{t('language.english')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="template-purpose">{t('documentTemplates.purpose')}</Label>
+                      <Select
+                        value={form.purpose}
+                        onValueChange={(value) =>
+                          setForm((current) => ({ ...current, purpose: value as DocumentTemplatePurpose }))
+                        }
+                      >
+                        <SelectTrigger id="template-purpose">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="completion">{t('documentTemplates.purposeCompletion')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="template-file">
+                        {editingTemplate ? t('documentTemplates.replaceFile') : t('documentTemplates.file')}
+                      </Label>
+                      <Input
+                        id="template-file"
+                        type="file"
+                        accept=".docx"
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            file: event.target.files?.[0] ?? null,
+                          }))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {editingTemplate
+                          ? t('documentTemplates.fileOptional', {
+                              fileName: editingTemplate.originalFileName,
+                            })
+                          : t('documentTemplates.fileHint')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 p-4">
+                    <label className="flex items-center gap-3 text-sm">
+                      <Checkbox
+                        checked={form.isActive}
+                        onCheckedChange={(checked) =>
+                          setForm((current) => ({ ...current, isActive: checked === true }))
+                        }
+                      />
+                      {t('documentTemplates.active')}
+                    </label>
+                  </div>
+
+                  <Button className="w-full" type="submit" disabled={saveMutation.isPending}>
+                    {saveMutation.isPending ? t('common.saving') : t('common.save')}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          ) : null}
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
+          {!canManageTemplates ? (
+            <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-5 text-sm text-muted-foreground lg:col-span-2">
+              {t('documentTemplates.readOnlyHint')}
+            </div>
+          ) : null}
+
           <Card className="border-border/70 bg-card/80 lg:col-span-2">
             <CardHeader>
               <CardTitle>{t('documentTemplates.placeholdersTitle')}</CardTitle>
@@ -450,9 +459,11 @@ export function DocumentTemplatesPage() {
                       <Badge variant="outline">{t('documentTemplates.purposeCompletion')}</Badge>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(template)}>
-                    <SquarePen className="h-4 w-4" />
-                  </Button>
+                  {canManageTemplates ? (
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(template)}>
+                      <SquarePen className="h-4 w-4" />
+                    </Button>
+                  ) : null}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -467,33 +478,35 @@ export function DocumentTemplatesPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void toggleStatusMutation.mutateAsync(template)}
-                    disabled={toggleStatusMutation.isPending || deleteMutation.isPending}
-                  >
-                    {template.isActive ? t('documentTemplates.deactivate') : t('documentTemplates.activate')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => openEdit(template)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    {t('common.edit')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setTemplatePendingDelete(template)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                    {t('common.delete')}
-                  </Button>
-                </div>
+                {canManageTemplates ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void toggleStatusMutation.mutateAsync(template)}
+                      disabled={toggleStatusMutation.isPending || deleteMutation.isPending}
+                    >
+                      {template.isActive ? t('documentTemplates.deactivate') : t('documentTemplates.activate')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => openEdit(template)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      {t('common.edit')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setTemplatePendingDelete(template)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                      {t('common.delete')}
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
               ))

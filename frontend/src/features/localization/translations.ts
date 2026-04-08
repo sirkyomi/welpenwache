@@ -186,7 +186,7 @@ const translations = {
     documentTemplates: {
       title: 'Dokumentvorlagen',
       description:
-        'Administratoren laden wiederverwendbare Vorlagen hoch und steuern, welche Unterlagen im Abschluss-Workflow erzeugt werden.',
+        'Benutzer mit Dokumentrechten sehen hier die Vorlagen für den Abschluss-Workflow und verwalten deren Einsatz.',
       placeholdersTitle: 'Verfügbare Platzhalter',
       placeholdersDescription:
         'Diese Werte können direkt in DOCX-Vorlagen verwendet werden. Sammlungen stehen für wiederholte Bereiche bereit.',
@@ -237,6 +237,7 @@ const translations = {
         'Möchtest du die Vorlage "{name}" wirklich löschen? Der Datenbankeintrag und die gespeicherte DOCX-Datei werden entfernt.',
       deleteDescriptionFallback:
         'Möchtest du diese Dokumentvorlage wirklich löschen? Der Datenbankeintrag und die gespeicherte DOCX-Datei werden entfernt.',
+      readOnlyHint: 'Du kannst Dokumentvorlagen ansehen, aber nicht bearbeiten.',
     },
     users: {
       title: 'Benutzer',
@@ -260,6 +261,8 @@ const translations = {
       permissionInternsManage: 'Praktikanten bearbeiten',
       permissionTeamsView: 'Teams sehen',
       permissionTeamsManage: 'Teams verwalten',
+      permissionDocumentsView: 'Dokumente sehen',
+      permissionDocumentsManage: 'Dokumente bearbeiten',
     },
     version: {
       label: 'Benutzer',
@@ -442,7 +445,7 @@ const translations = {
     documentTemplates: {
       title: 'Document templates',
       description:
-        'Administrators upload reusable templates and control which files are generated during the completion workflow.',
+        'Users with document permissions can review the templates used in the completion workflow and manage them here.',
       placeholdersTitle: 'Available placeholders',
       placeholdersDescription:
         'These values can be used directly inside DOCX templates. Collections are available for repeated sections.',
@@ -493,6 +496,7 @@ const translations = {
         'Do you really want to delete the template "{name}"? The database entry and the stored DOCX file will be removed.',
       deleteDescriptionFallback:
         'Do you really want to delete this document template? The database entry and the stored DOCX file will be removed.',
+      readOnlyHint: 'You can view document templates, but you cannot edit them.',
     },
     users: {
       title: 'Users',
@@ -516,6 +520,8 @@ const translations = {
       permissionInternsManage: 'Manage interns',
       permissionTeamsView: 'View teams',
       permissionTeamsManage: 'Manage teams',
+      permissionDocumentsView: 'View documents',
+      permissionDocumentsManage: 'Manage documents',
     },
     version: {
       label: 'User',

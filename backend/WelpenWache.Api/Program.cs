@@ -509,10 +509,15 @@ teamsGroup.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.TeamsMa
 });
 
 var internsGroup = app.MapGroup("/api/interns")
-    .RequireAuthorization(PermissionCatalog.InternsView);
+    .RequireAuthorization();
 
-internsGroup.MapGet("/", async (ApplicationDbContext dbContext) =>
+internsGroup.MapGet("/", async (ClaimsPrincipal principal, ApplicationDbContext dbContext) =>
 {
+    if (!CanAccessInterns(principal))
+    {
+        return Results.Forbid();
+    }
+
     var interns = await dbContext.Interns
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
@@ -527,8 +532,13 @@ internsGroup.MapGet("/", async (ApplicationDbContext dbContext) =>
     return Results.Ok(interns.Select(item => item.ToResponse()));
 });
 
-internsGroup.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext dbContext) =>
+internsGroup.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, ApplicationDbContext dbContext) =>
 {
+    if (!CanAccessInterns(principal))
+    {
+        return Results.Forbid();
+    }
+
     var intern = await dbContext.Interns
         .Include(item => item.Internships)
             .ThenInclude(internship => internship.Assignments)
@@ -657,12 +667,18 @@ internsGroup.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.Inter
     return Results.NoContent();
 });
 
-internsGroup.MapPost("/{id:guid}/completion-documents", [Authorize(Policy = PermissionCatalog.InternsManage)] async (
+internsGroup.MapPost("/{id:guid}/completion-documents", async (
     Guid id,
+    ClaimsPrincipal principal,
     ApplicationDbContext dbContext,
     CompletionDocumentService completionDocumentService,
     CancellationToken cancellationToken) =>
 {
+    if (!CanAccessDocuments(principal))
+    {
+        return Results.Forbid();
+    }
+
     var intern = await dbContext.Interns
         .AsNoTracking()
         .Include(item => item.Internships)
@@ -700,10 +716,19 @@ internsGroup.MapPost("/{id:guid}/completion-documents", [Authorize(Policy = Perm
 });
 
 var documentTemplatesGroup = app.MapGroup("/api/document-templates")
-    .RequireAuthorization(Policies.AdminOnly);
+    .RequireAuthorization();
 
-documentTemplatesGroup.MapGet("/", async (string? purpose, ApplicationDbContext dbContext, CancellationToken cancellationToken) =>
+documentTemplatesGroup.MapGet("/", async (
+    ClaimsPrincipal principal,
+    string? purpose,
+    ApplicationDbContext dbContext,
+    CancellationToken cancellationToken) =>
 {
+    if (!CanAccessDocuments(principal))
+    {
+        return Results.Forbid();
+    }
+
     var query = dbContext.DocumentTemplates.AsNoTracking();
 
     if (!string.IsNullOrWhiteSpace(purpose))
@@ -721,7 +746,7 @@ documentTemplatesGroup.MapGet("/", async (string? purpose, ApplicationDbContext 
     return Results.Ok(templates.Select(item => item.ToResponse()));
 });
 
-documentTemplatesGroup.MapPost("/", async (
+documentTemplatesGroup.MapPost("/", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
     [FromForm] DocumentTemplateUpsertForm form,
     ApplicationDbContext dbContext,
     TemplateStorageService templateStorageService,
@@ -766,7 +791,7 @@ documentTemplatesGroup.MapPost("/", async (
 })
     .DisableAntiforgery();
 
-documentTemplatesGroup.MapPut("/{id:guid}", async (
+documentTemplatesGroup.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
     Guid id,
     [FromForm] DocumentTemplateUpsertForm form,
     ApplicationDbContext dbContext,
@@ -823,7 +848,7 @@ documentTemplatesGroup.MapPut("/{id:guid}", async (
 })
     .DisableAntiforgery();
 
-documentTemplatesGroup.MapDelete("/{id:guid}", async (
+documentTemplatesGroup.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
     Guid id,
     ApplicationDbContext dbContext,
     TemplateStorageService templateStorageService,
@@ -1275,6 +1300,18 @@ static bool CanAccessTeams(ClaimsPrincipal principal) =>
     || principal.HasPermission(PermissionCatalog.TeamsManage)
     || principal.HasPermission(PermissionCatalog.InternsView)
     || principal.HasPermission(PermissionCatalog.InternsManage);
+
+static bool CanAccessInterns(ClaimsPrincipal principal) =>
+    principal.IsAdministrator()
+    || principal.HasPermission(PermissionCatalog.InternsView)
+    || principal.HasPermission(PermissionCatalog.InternsManage)
+    || principal.HasPermission(PermissionCatalog.DocumentsView)
+    || principal.HasPermission(PermissionCatalog.DocumentsManage);
+
+static bool CanAccessDocuments(ClaimsPrincipal principal) =>
+    principal.IsAdministrator()
+    || principal.HasPermission(PermissionCatalog.DocumentsView)
+    || principal.HasPermission(PermissionCatalog.DocumentsManage);
 
 static class Policies
 {

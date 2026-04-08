@@ -3,6 +3,8 @@ export type Permission =
   | 'interns.manage'
   | 'teams.view'
   | 'teams.manage'
+  | 'documents.view'
+  | 'documents.manage'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type LanguagePreference = 'de' | 'en'

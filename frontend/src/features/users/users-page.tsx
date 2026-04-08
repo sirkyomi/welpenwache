@@ -50,6 +50,8 @@ export function UsersPage() {
     { value: 'interns.manage', label: t('users.permissionInternsManage') },
     { value: 'teams.view', label: t('users.permissionTeamsView') },
     { value: 'teams.manage', label: t('users.permissionTeamsManage') },
+    { value: 'documents.view', label: t('users.permissionDocumentsView') },
+    { value: 'documents.manage', label: t('users.permissionDocumentsManage') },
   ]
 
   const permissionLabels = Object.fromEntries(permissionOptions.map((option) => [option.value, option.label]))

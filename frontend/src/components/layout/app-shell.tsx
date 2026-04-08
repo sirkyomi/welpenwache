@@ -28,20 +28,38 @@ import { cn } from '@/lib/utils'
 
 function RestrictedRoute({
   allowed,
+  redirectTo,
   children,
 }: {
   allowed: boolean
+  redirectTo: string
   children: React.ReactNode
 }) {
-  return allowed ? <>{children}</> : <Navigate to="/" replace />
+  return allowed ? <>{children}</> : <Navigate to={redirectTo} replace />
 }
 
 export function AppShell() {
   const { hasPermission, user } = useAuth()
   const { languagePreference, setLanguagePreference, t } = useLanguage()
   const { resolvedTheme, setThemePreference, themePreference } = useTheme()
-  const canViewInterns = hasPermission('interns.view') || hasPermission('interns.manage')
+  const canViewCalendar = hasPermission('interns.view') || hasPermission('interns.manage')
+  const canViewInterns =
+    canViewCalendar || hasPermission('documents.view') || hasPermission('documents.manage')
   const canViewTeams = hasPermission('teams.view') || hasPermission('teams.manage')
+  const canViewDocumentTemplates =
+    hasPermission('documents.view') || hasPermission('documents.manage')
+  const canManageUsers = Boolean(user?.isAdministrator)
+  const fallbackRoute = canViewCalendar
+    ? '/'
+    : canViewInterns
+      ? '/praktikanten'
+      : canViewTeams
+        ? '/teams'
+        : canViewDocumentTemplates
+          ? '/dokumentvorlagen'
+          : canManageUsers
+            ? '/benutzer'
+            : '/'
 
   const handleLanguageChange = async (value: LanguagePreference) => {
     try {
@@ -53,11 +71,11 @@ export function AppShell() {
   }
 
   const navigation = [
-    { to: '/', label: t('navigation.calendar'), icon: CalendarDays, visible: canViewInterns },
+    { to: '/', label: t('navigation.calendar'), icon: CalendarDays, visible: canViewCalendar },
     { to: '/praktikanten', label: t('navigation.interns'), icon: UsersRound, visible: canViewInterns },
     { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
-    { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: Boolean(user?.isAdministrator) },
-    { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: Boolean(user?.isAdministrator) },
+    { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: canViewDocumentTemplates },
+    { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: canManageUsers },
   ].filter((item) => item.visible)
 
   return (
@@ -163,15 +181,13 @@ export function AppShell() {
             <Route
               path="/"
               element={
-                <RestrictedRoute allowed={canViewInterns}>
-                  <CalendarPage />
-                </RestrictedRoute>
+                canViewCalendar ? <CalendarPage /> : <Navigate to={fallbackRoute} replace />
               }
             />
             <Route
               path="/praktikanten"
               element={
-                <RestrictedRoute allowed={canViewInterns}>
+                <RestrictedRoute allowed={canViewInterns} redirectTo={fallbackRoute}>
                   <InternsPage />
                 </RestrictedRoute>
               }
@@ -179,7 +195,7 @@ export function AppShell() {
             <Route
               path="/praktikanten/:internId"
               element={
-                <RestrictedRoute allowed={canViewInterns}>
+                <RestrictedRoute allowed={canViewInterns} redirectTo={fallbackRoute}>
                   <InternDetailPage />
                 </RestrictedRoute>
               }
@@ -187,7 +203,7 @@ export function AppShell() {
             <Route
               path="/teams"
               element={
-                <RestrictedRoute allowed={canViewTeams}>
+                <RestrictedRoute allowed={canViewTeams} redirectTo={fallbackRoute}>
                   <TeamsPage />
                 </RestrictedRoute>
               }
@@ -195,7 +211,7 @@ export function AppShell() {
             <Route
               path="/teams/:teamId"
               element={
-                <RestrictedRoute allowed={canViewTeams}>
+                <RestrictedRoute allowed={canViewTeams} redirectTo={fallbackRoute}>
                   <TeamDetailPage />
                 </RestrictedRoute>
               }
@@ -203,7 +219,7 @@ export function AppShell() {
             <Route
               path="/benutzer"
               element={
-                <RestrictedRoute allowed={Boolean(user?.isAdministrator)}>
+                <RestrictedRoute allowed={canManageUsers} redirectTo={fallbackRoute}>
                   <UsersPage />
                 </RestrictedRoute>
               }
@@ -211,12 +227,12 @@ export function AppShell() {
             <Route
               path="/dokumentvorlagen"
               element={
-                <RestrictedRoute allowed={Boolean(user?.isAdministrator)}>
+                <RestrictedRoute allowed={canViewDocumentTemplates} redirectTo={fallbackRoute}>
                   <DocumentTemplatesPage />
                 </RestrictedRoute>
               }
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
           </Routes>
         </main>
       </div>
