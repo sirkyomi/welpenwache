@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO.Compression;
 using System.Security;
 using System.Text;
@@ -107,6 +107,7 @@ public sealed class CompletionDocumentService(
         documentTemplate.BindModel(nameof(model.salutation), model.salutation);
         documentTemplate.BindModel(nameof(model.start_date), model.start_date);
         documentTemplate.BindModel(nameof(model.end_date), model.end_date);
+        documentTemplate.BindModel(nameof(model.export_date), model.export_date);
         documentTemplate.BindModel(nameof(model.team), model.team);
         documentTemplate.BindModel(nameof(model.internship_count), model.internship_count);
         documentTemplate.BindModel(nameof(model.team_assignments), model.team_assignments);
@@ -129,10 +130,11 @@ public sealed class CompletionDocumentService(
             intern.FullName,
             intern.School ?? string.Empty,
             intern.Notes ?? string.Empty,
-            InternGender.Normalize(intern.Gender),
+            ResolveGenderValue(intern.Gender, language),
             ResolveSalutation(intern.Gender, language),
             internships.Count > 0 ? FormatDate(internships[0].StartDate, culture) : string.Empty,
             internships.Count > 0 ? FormatDate(internships[^1].EndDate, culture) : string.Empty,
+            DateTime.Now.ToString("d", culture),
             string.Join(", ", assignments
                 .Select(item => item.assignment.Team.Name)
                 .Distinct(StringComparer.CurrentCultureIgnoreCase)),
@@ -162,18 +164,35 @@ public sealed class CompletionDocumentService(
                 .ToList());
     }
 
-    private string ResolveSalutation(string gender, string language)
+    private string ResolveGenderValue(string gender, string language) =>
+        ResolveConfiguredValue(
+            completionOptions.Genders,
+            gender,
+            language,
+            "Geschlechtswert");
+
+    private string ResolveSalutation(string gender, string language) =>
+        ResolveConfiguredValue(
+            completionOptions.Salutations,
+            gender,
+            language,
+            "Anrede");
+
+    private static string ResolveConfiguredValue(
+        IReadOnlyDictionary<string, Dictionary<string, string>> configuredValues,
+        string gender,
+        string language,
+        string valueName)
     {
         var normalizedGender = InternGender.Normalize(gender);
-        if (completionOptions.Salutations.TryGetValue(normalizedGender, out var languageMap)
-            && languageMap.TryGetValue(language, out var salutation)
-            && !string.IsNullOrWhiteSpace(salutation))
+        if (configuredValues.TryGetValue(normalizedGender, out var languageMap)
+            && languageMap.TryGetValue(language, out var configuredValue))
         {
-            return salutation.Trim();
+            return configuredValue?.Trim() ?? string.Empty;
         }
 
         throw new InvalidOperationException(
-            $"Für das Geschlecht \"{normalizedGender}\" und die Sprache \"{language}\" ist keine Anrede konfiguriert.");
+            $"Für das Geschlecht \"{normalizedGender}\" und die Sprache \"{language}\" ist kein {valueName} konfiguriert.");
     }
 
     private static CultureInfo ResolveCulture(string language) =>
@@ -250,6 +269,7 @@ public sealed class CompletionDocumentService(
             ["{{salutation}}"] = model.salutation,
             ["{{start_date}}"] = model.start_date,
             ["{{end_date}}"] = model.end_date,
+            ["{{export_date}}"] = model.export_date,
             ["{{team}}"] = model.team,
             ["{{internship_count}}"] = model.internship_count.ToString(CultureInfo.InvariantCulture),
             ["{{ds.first_name}}"] = model.first_name,
@@ -261,6 +281,7 @@ public sealed class CompletionDocumentService(
             ["{{ds.salutation}}"] = model.salutation,
             ["{{ds.start_date}}"] = model.start_date,
             ["{{ds.end_date}}"] = model.end_date,
+            ["{{ds.export_date}}"] = model.export_date,
             ["{{ds.team}}"] = model.team,
             ["{{ds.internship_count}}"] = model.internship_count.ToString(CultureInfo.InvariantCulture)
         };
@@ -275,6 +296,7 @@ public sealed class CompletionDocumentService(
         string salutation,
         string start_date,
         string end_date,
+        string export_date,
         string team,
         int internship_count,
         IReadOnlyList<CompletionTemplateAssignmentModel> team_assignments,
