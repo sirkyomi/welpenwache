@@ -899,6 +899,8 @@ calendarGroup.MapGet("/month", async (int year, int month, ApplicationDbContext 
         .Include(internship => internship.Intern)
         .Include(internship => internship.Assignments)
             .ThenInclude(assignment => assignment.Team)
+        .Include(internship => internship.Assignments)
+            .ThenInclude(assignment => assignment.Supervisor)
         .Where(internship => internship.EndDate >= monthStart && internship.StartDate <= monthEnd)
         .OrderBy(internship => internship.StartDate)
         .ThenBy(internship => internship.Intern.LastName)
@@ -917,7 +919,9 @@ calendarGroup.MapGet("/month", async (int year, int month, ApplicationDbContext 
                         internship.Id,
                         assignment.TeamId,
                         assignment.Team.Name,
-                        assignment.Team.ColorHex)))
+                        assignment.Team.ColorHex,
+                        assignment.SupervisorId,
+                        assignment.Supervisor?.Name)))
                 .OrderBy(entry => entry.TeamName)
                 .ThenBy(entry => entry.InternName)
                 .ToList();
