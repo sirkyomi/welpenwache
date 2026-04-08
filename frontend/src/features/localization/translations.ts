@@ -209,6 +209,8 @@ const translations = {
       updated: 'Dokumentvorlage aktualisiert.',
       saveFailed: 'Die Dokumentvorlage konnte nicht gespeichert werden.',
       statusFailed: 'Der Status der Dokumentvorlage konnte nicht geändert werden.',
+      deleted: 'Dokumentvorlage gelöscht.',
+      deleteFailed: 'Die Dokumentvorlage konnte nicht gelöscht werden.',
       loading: 'Dokumentvorlagen werden geladen ...',
       loadFailed: 'Die Dokumentvorlagen konnten nicht geladen werden.',
       activated: 'Dokumentvorlage aktiviert.',
@@ -230,6 +232,11 @@ const translations = {
       deactivate: 'Deaktivieren',
       originalFile: 'Dateiname',
       uploadedAt: 'Hochgeladen am',
+      deleteTitle: 'Dokumentvorlage löschen',
+      deleteDescription:
+        'Möchtest du die Vorlage "{name}" wirklich löschen? Der Datenbankeintrag und die gespeicherte DOCX-Datei werden entfernt.',
+      deleteDescriptionFallback:
+        'Möchtest du diese Dokumentvorlage wirklich löschen? Der Datenbankeintrag und die gespeicherte DOCX-Datei werden entfernt.',
     },
     users: {
       title: 'Benutzer',
@@ -458,6 +465,8 @@ const translations = {
       updated: 'Document template updated.',
       saveFailed: 'The document template could not be saved.',
       statusFailed: 'The document template status could not be changed.',
+      deleted: 'Document template deleted.',
+      deleteFailed: 'The document template could not be deleted.',
       loading: 'Loading document templates ...',
       loadFailed: 'The document templates could not be loaded.',
       activated: 'Document template activated.',
@@ -479,6 +488,11 @@ const translations = {
       deactivate: 'Deactivate',
       originalFile: 'File name',
       uploadedAt: 'Uploaded on',
+      deleteTitle: 'Delete document template',
+      deleteDescription:
+        'Do you really want to delete the template "{name}"? The database entry and the stored DOCX file will be removed.',
+      deleteDescriptionFallback:
+        'Do you really want to delete this document template? The database entry and the stored DOCX file will be removed.',
     },
     users: {
       title: 'Users',

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileCog, Plus, SquarePen } from 'lucide-react'
+import { FileCog, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -68,6 +69,7 @@ export function DocumentTemplatesPage() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null)
+  const [templatePendingDelete, setTemplatePendingDelete] = useState<DocumentTemplate | null>(null)
   const [form, setForm] = useState<DocumentTemplateFormState>(emptyForm)
 
   const templatesQuery = useQuery({
@@ -140,6 +142,24 @@ export function DocumentTemplatesPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async (template: DocumentTemplate) => {
+      if (!token) {
+        return
+      }
+
+      await api.deleteDocumentTemplate(token, template.id)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['document-templates'] })
+      setTemplatePendingDelete(null)
+      toast.success(t('documentTemplates.deleted'))
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('documentTemplates.deleteFailed'))
+    },
+  })
+
   const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data])
 
   const openCreate = () => {
@@ -160,8 +180,50 @@ export function DocumentTemplatesPage() {
     setOpen(true)
   }
 
+  const deleteTemplate = async (template: DocumentTemplate) => {
+    await deleteMutation.mutateAsync(template)
+  }
+
   return (
     <section className="space-y-6">
+      <Dialog
+        open={Boolean(templatePendingDelete)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !deleteMutation.isPending) {
+            setTemplatePendingDelete(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('documentTemplates.deleteTitle')}</DialogTitle>
+            <DialogDescription>
+              {templatePendingDelete
+                ? t('documentTemplates.deleteDescription', { name: templatePendingDelete.name })
+                : t('documentTemplates.deleteDescriptionFallback')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTemplatePendingDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => templatePendingDelete && void deleteTemplate(templatePendingDelete)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? t('common.deleting') : t('common.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -410,12 +472,26 @@ export function DocumentTemplatesPage() {
                     type="button"
                     variant="outline"
                     onClick={() => void toggleStatusMutation.mutateAsync(template)}
-                    disabled={toggleStatusMutation.isPending}
+                    disabled={toggleStatusMutation.isPending || deleteMutation.isPending}
                   >
                     {template.isActive ? t('documentTemplates.deactivate') : t('documentTemplates.activate')}
                   </Button>
-                  <Button type="button" variant="ghost" onClick={() => openEdit(template)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => openEdit(template)}
+                    disabled={deleteMutation.isPending}
+                  >
                     {t('common.edit')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setTemplatePendingDelete(template)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    {t('common.delete')}
                   </Button>
                 </div>
               </CardContent>

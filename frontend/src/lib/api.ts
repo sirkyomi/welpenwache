@@ -263,4 +263,6 @@ export const api = {
 
     return request<DocumentTemplate>(`/api/document-templates/${id}`, { method: 'PUT', body: formData }, token)
   },
+  deleteDocumentTemplate: (token: string, id: string) =>
+    request<void>(`/api/document-templates/${id}`, { method: 'DELETE' }, token),
 }
