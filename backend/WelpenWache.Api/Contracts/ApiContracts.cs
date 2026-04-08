@@ -102,6 +102,7 @@ public sealed record InternshipRequest(
 public sealed record InternRequest(
     string FirstName,
     string LastName,
+    string Gender,
     string? School,
     string? Notes,
     IReadOnlyList<InternshipRequest> Internships);
@@ -128,9 +129,20 @@ public sealed record InternResponse(
     string FirstName,
     string LastName,
     string FullName,
+    string Gender,
     string? School,
     string? Notes,
     IReadOnlyList<InternshipResponse> Internships);
+
+public sealed record DocumentTemplateResponse(
+    Guid Id,
+    string Name,
+    string Purpose,
+    string Language,
+    string RelativeFilePath,
+    string OriginalFileName,
+    bool IsActive,
+    DateTime UploadedUtc);
 
 public sealed record CalendarDayEntryResponse(
     Guid InternId,

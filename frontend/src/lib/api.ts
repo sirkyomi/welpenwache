@@ -4,6 +4,9 @@ import type {
   AuthResponse,
   AuthUser,
   CalendarMonth,
+  DocumentTemplate,
+  DocumentTemplatePurpose,
+  Gender,
   Intern,
   LanguagePreference,
   Permission,
@@ -35,27 +38,87 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
-  const languagePreference = readStoredLanguagePreference()
+interface DownloadResponse {
+  blob: Blob
+  fileName: string | null
+}
 
+function buildHeaders(init?: RequestInit, token?: string) {
+  const languagePreference = readStoredLanguagePreference()
+  const headers = new Headers(init?.headers)
+
+  if (languagePreference && !headers.has('Accept-Language')) {
+    headers.set('Accept-Language', languagePreference)
+  }
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  if (!(init?.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  return headers
+}
+
+async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(languagePreference ? { 'Accept-Language': languagePreference } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
+    headers: buildHeaders(init, token),
   })
 
   const text = await response.text()
-  const data = text ? (JSON.parse(text) as unknown) : undefined
+  const data = parseResponseText(text)
 
   if (!response.ok) {
     throw new ApiError(response.status, (data as ApiErrorPayload | undefined) ?? undefined)
   }
 
   return data as T
+}
+
+async function requestDownload(path: string, init?: RequestInit, token?: string): Promise<DownloadResponse> {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: buildHeaders(init, token),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    const data = parseResponseText(text)
+    throw new ApiError(response.status, (data as ApiErrorPayload | undefined) ?? undefined)
+  }
+
+  const blob = await response.blob()
+  const fileName = extractFileName(response.headers.get('Content-Disposition'))
+  return { blob, fileName }
+}
+
+function extractFileName(contentDisposition: string | null) {
+  if (!contentDisposition) {
+    return null
+  }
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const fallbackMatch = contentDisposition.match(/filename="?([^";]+)"?/i)
+  return fallbackMatch?.[1] ?? null
+}
+
+function parseResponseText(text: string) {
+  if (!text) {
+    return undefined
+  }
+
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return undefined
+  }
 }
 
 export const api = {
@@ -100,6 +163,7 @@ export const api = {
     payload: {
       firstName: string
       lastName: string
+      gender: Gender
       school: string | null
       notes: string | null
       internships: Array<{
@@ -116,6 +180,7 @@ export const api = {
     payload: {
       firstName: string
       lastName: string
+      gender: Gender
       school: string | null
       notes: string | null
       internships: Array<{
@@ -128,6 +193,8 @@ export const api = {
   ) => request<Intern>(`/api/interns/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
   deleteIntern: (token: string, id: string) =>
     request<void>(`/api/interns/${id}`, { method: 'DELETE' }, token),
+  generateCompletionDocuments: (token: string, internId: string) =>
+    requestDownload(`/api/interns/${internId}/completion-documents`, { method: 'POST' }, token),
   getCalendarMonth: (token: string, year: number, month: number) =>
     request<CalendarMonth>(`/api/calendar/month?year=${year}&month=${month}`, undefined, token),
   getUsers: (token: string) => request<AuthUser[]>('/api/users', undefined, token),
@@ -152,4 +219,48 @@ export const api = {
       permissions: Permission[]
     },
   ) => request<AuthUser>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+  getDocumentTemplates: (token: string) =>
+    request<DocumentTemplate[]>('/api/document-templates', undefined, token),
+  createDocumentTemplate: (
+    token: string,
+    payload: {
+      name: string
+      purpose: DocumentTemplatePurpose
+      language: LanguagePreference
+      isActive: boolean
+      file: File
+    },
+  ) => {
+    const formData = new FormData()
+    formData.set('name', payload.name)
+    formData.set('purpose', payload.purpose)
+    formData.set('language', payload.language)
+    formData.set('isActive', String(payload.isActive))
+    formData.set('file', payload.file)
+
+    return request<DocumentTemplate>('/api/document-templates', { method: 'POST', body: formData }, token)
+  },
+  updateDocumentTemplate: (
+    token: string,
+    id: string,
+    payload: {
+      name: string
+      purpose: DocumentTemplatePurpose
+      language: LanguagePreference
+      isActive: boolean
+      file?: File | null
+    },
+  ) => {
+    const formData = new FormData()
+    formData.set('name', payload.name)
+    formData.set('purpose', payload.purpose)
+    formData.set('language', payload.language)
+    formData.set('isActive', String(payload.isActive))
+
+    if (payload.file) {
+      formData.set('file', payload.file)
+    }
+
+    return request<DocumentTemplate>(`/api/document-templates/${id}`, { method: 'PUT', body: formData }, token)
+  },
 }

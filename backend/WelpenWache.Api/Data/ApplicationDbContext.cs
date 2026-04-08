@@ -19,6 +19,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<InternshipAssignment> Assignments => Set<InternshipAssignment>();
 
+    public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserAccount>(entity =>
@@ -81,6 +83,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasKey(intern => intern.Id);
             entity.Property(intern => intern.FirstName).HasMaxLength(120).IsRequired();
             entity.Property(intern => intern.LastName).HasMaxLength(120).IsRequired();
+            entity.Property(intern => intern.Gender)
+                .HasMaxLength(16)
+                .HasDefaultValue(InternGender.Male)
+                .IsRequired();
             entity.Property(intern => intern.School).HasMaxLength(200);
             entity.Property(intern => intern.Notes).HasMaxLength(1000);
             entity.HasMany(intern => intern.Internships)
@@ -112,6 +118,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(supervisor => supervisor.Assignments)
                 .HasForeignKey(assignment => assignment.SupervisorId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentTemplate>(entity =>
+        {
+            entity.ToTable("DocumentTemplates");
+            entity.HasKey(template => template.Id);
+            entity.Property(template => template.Name).HasMaxLength(160).IsRequired();
+            entity.Property(template => template.Purpose).HasMaxLength(50).IsRequired();
+            entity.Property(template => template.Language).HasMaxLength(8).IsRequired();
+            entity.Property(template => template.RelativeFilePath).HasMaxLength(400).IsRequired();
+            entity.Property(template => template.OriginalFileName).HasMaxLength(260).IsRequired();
+            entity.HasIndex(template => new { template.Purpose, template.Language, template.IsActive });
         });
     }
 }

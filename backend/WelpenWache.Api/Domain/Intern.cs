@@ -8,6 +8,8 @@ public sealed class Intern
 
     public string LastName { get; set; } = string.Empty;
 
+    public string Gender { get; set; } = InternGender.Male;
+
     public string? School { get; set; }
 
     public string? Notes { get; set; }

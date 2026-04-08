@@ -1,4 +1,4 @@
-import { CalendarDays, Github, Languages, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
+import { CalendarDays, FileCog, Github, Languages, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/features/auth/auth-provider'
 import { CalendarPage } from '@/features/calendar/calendar-page'
+import { DocumentTemplatesPage } from '@/features/document-templates/document-templates-page'
 import { InternDetailPage } from '@/features/interns/intern-detail-page'
 import { InternsPage } from '@/features/interns/interns-page'
 import { useLanguage } from '@/features/localization/language-provider'
@@ -55,6 +56,7 @@ export function AppShell() {
     { to: '/', label: t('navigation.calendar'), icon: CalendarDays, visible: canViewInterns },
     { to: '/praktikanten', label: t('navigation.interns'), icon: UsersRound, visible: canViewInterns },
     { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
+    { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: Boolean(user?.isAdministrator) },
     { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: Boolean(user?.isAdministrator) },
   ].filter((item) => item.visible)
 
@@ -203,6 +205,14 @@ export function AppShell() {
               element={
                 <RestrictedRoute allowed={Boolean(user?.isAdministrator)}>
                   <UsersPage />
+                </RestrictedRoute>
+              }
+            />
+            <Route
+              path="/dokumentvorlagen"
+              element={
+                <RestrictedRoute allowed={Boolean(user?.isAdministrator)}>
+                  <DocumentTemplatesPage />
                 </RestrictedRoute>
               }
             />

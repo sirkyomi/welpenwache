@@ -1,23 +1,59 @@
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, GraduationCap, NotebookText, SquarePen, UsersRound } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { ArrowLeft, CalendarDays, FileDown, GraduationCap, NotebookText, SquarePen, UsersRound } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
+import { downloadBlob } from '@/lib/download'
+import type { Gender } from '@/lib/types'
 
 export function InternDetailPage() {
   const { hasPermission, token } = useAuth()
   const { formatDateRange, t } = useLanguage()
   const { internId } = useParams<{ internId: string }>()
+  const canRunCompletion = hasPermission('interns.view') || hasPermission('interns.manage')
 
   const internQuery = useQuery({
     queryKey: ['intern', internId],
     queryFn: () => api.getIntern(token!, internId!),
     enabled: Boolean(token && internId),
   })
+
+  const completionMutation = useMutation({
+    mutationFn: async () => {
+      if (!token || !internId) {
+        return null
+      }
+
+      return api.generateCompletionDocuments(token, internId)
+    },
+    onSuccess: (result) => {
+      if (!result || !internQuery.data) {
+        return
+      }
+
+      downloadBlob(result.blob, result.fileName ?? `abschlussunterlagen-${internQuery.data.id}.zip`)
+      toast.success(t('interns.completionSuccess', { name: internQuery.data.fullName }))
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('interns.completionFailed'))
+    },
+  })
+
+  const getGenderLabel = (gender: Gender) => {
+    switch (gender) {
+      case 'female':
+        return t('interns.genderFemale')
+      case 'diverse':
+        return t('interns.genderDiverse')
+      default:
+        return t('interns.genderMale')
+    }
+  }
 
   if (!internId) {
     return <Navigate to="/praktikanten" replace />
@@ -77,6 +113,12 @@ export function InternDetailPage() {
             </Link>
           </Button>
         ) : null}
+        {canRunCompletion ? (
+          <Button onClick={() => void completionMutation.mutateAsync()} disabled={completionMutation.isPending}>
+            <FileDown className="h-4 w-4" />
+            {completionMutation.isPending ? t('interns.completionRunning') : t('interns.completeIntern')}
+          </Button>
+        ) : null}
       </div>
 
       <Card className="border-border/70 bg-card/85 shadow-sm">
@@ -112,6 +154,13 @@ export function InternDetailPage() {
                 {t('interns.origin')}
               </div>
               <p className="text-sm text-muted-foreground">{intern.school || t('interns.originMissing')}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <UsersRound className="h-4 w-4 text-primary" />
+                {t('interns.gender')}
+              </div>
+              <p className="text-sm text-muted-foreground">{getGenderLabel(intern.gender)}</p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">

@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+    <PackageReference Include="DocxTemplater" Version="2.6.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -33,9 +34,7 @@
   </Target>
 
   <Target Name="PublishBundledFrontend" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
-    <Error
-      Condition="!Exists('$(FrontendDistDir)\index.html')"
-      Text="Das React-Frontend wurde nicht erfolgreich gebaut. Erwartet: $(FrontendDistDir)\index.html" />
+    <Error Condition="!Exists('$(FrontendDistDir)\index.html')" Text="Das React-Frontend wurde nicht erfolgreich gebaut. Erwartet: $(FrontendDistDir)\index.html" />
 
     <ItemGroup>
       <FrontendDistFiles Include="$(FrontendDistDir)\**\*" />
@@ -43,10 +42,7 @@
 
     <RemoveDir Directories="$(PublishDir)wwwroot" />
     <MakeDir Directories="$(PublishDir)wwwroot" />
-    <Copy
-      SourceFiles="@(FrontendDistFiles)"
-      DestinationFiles="@(FrontendDistFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(FrontendDistFiles)" DestinationFiles="@(FrontendDistFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

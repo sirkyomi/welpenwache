@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, SquarePen, Trash2, UsersRound } from 'lucide-react'
+import { FileDown, Plus, SquarePen, Trash2, UsersRound } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -22,7 +22,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
-import type { Intern, Team } from '@/lib/types'
+import { downloadBlob } from '@/lib/download'
+import type { Gender, Intern, Team } from '@/lib/types'
 
 interface AssignmentFormState {
   teamId: string
@@ -41,6 +42,7 @@ interface InternshipFormState {
 interface InternFormState {
   firstName: string
   lastName: string
+  gender: Gender
   school: string
   notes: string
   internships: InternshipFormState[]
@@ -68,6 +70,7 @@ function createEmptyForm(): InternFormState {
   return {
     firstName: '',
     lastName: '',
+    gender: 'male',
     school: '',
     notes: '',
     internships: [],
@@ -87,6 +90,7 @@ export function InternsPage() {
   const [editingIntern, setEditingIntern] = useState<Intern | null>(null)
   const [internPendingDelete, setInternPendingDelete] = useState<Intern | null>(null)
   const [form, setForm] = useState<InternFormState>(createEmptyForm)
+  const canRunCompletion = hasPermission('interns.view') || hasPermission('interns.manage')
 
   const internsQuery = useQuery({
     queryKey: ['interns'],
@@ -109,6 +113,7 @@ export function InternsPage() {
       const payload = {
         firstName: form.firstName,
         lastName: form.lastName,
+        gender: form.gender,
         school: form.school || null,
         notes: form.notes || null,
         internships: form.internships.map((internship) => ({
@@ -160,6 +165,28 @@ export function InternsPage() {
     },
   })
 
+  const completionMutation = useMutation({
+    mutationFn: async (intern: Intern) => {
+      if (!token) {
+        return null
+      }
+
+      const download = await api.generateCompletionDocuments(token, intern.id)
+      return { ...download, intern }
+    },
+    onSuccess: (result) => {
+      if (!result) {
+        return
+      }
+
+      downloadBlob(result.blob, result.fileName ?? `abschlussunterlagen-${result.intern.id}.zip`)
+      toast.success(t('interns.completionSuccess', { name: result.intern.fullName }))
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('interns.completionFailed'))
+    },
+  })
+
   const interns = useMemo(() => internsQuery.data ?? [], [internsQuery.data])
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
   const requestedEditInternId = searchParams.get('edit')
@@ -175,6 +202,7 @@ export function InternsPage() {
     setForm({
       firstName: intern.firstName,
       lastName: intern.lastName,
+      gender: intern.gender,
       school: intern.school ?? '',
       notes: intern.notes ?? '',
       internships: intern.internships.map((internship) => ({
@@ -215,6 +243,17 @@ export function InternsPage() {
 
   const deleteIntern = async (intern: Intern) => {
     await deleteMutation.mutateAsync(intern)
+  }
+
+  const getGenderLabel = (gender: Gender) => {
+    switch (gender) {
+      case 'female':
+        return t('interns.genderFemale')
+      case 'diverse':
+        return t('interns.genderDiverse')
+      default:
+        return t('interns.genderMale')
+    }
   }
 
   const updateInternship = (
@@ -390,7 +429,7 @@ export function InternsPage() {
                     void saveMutation.mutateAsync()
                   }}
                 >
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="intern-first-name">{t('interns.firstName')}</Label>
                       <Input
@@ -406,6 +445,22 @@ export function InternsPage() {
                         value={form.lastName}
                         onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="intern-gender">{t('interns.gender')}</Label>
+                      <Select
+                        value={form.gender}
+                        onValueChange={(value) => setForm((current) => ({ ...current, gender: value as Gender }))}
+                      >
+                        <SelectTrigger id="intern-gender">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">{t('interns.genderMale')}</SelectItem>
+                          <SelectItem value="female">{t('interns.genderFemale')}</SelectItem>
+                          <SelectItem value="diverse">{t('interns.genderDiverse')}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="intern-school">{t('interns.school')}</Label>
@@ -606,11 +661,24 @@ export function InternsPage() {
                     </CardTitle>
                     <CardDescription>{intern.school || t('interns.schoolMissing')}</CardDescription>
                   </div>
-                  {hasPermission('interns.manage') ? (
+                  {canRunCompletion || hasPermission('interns.manage') ? (
                     <div className="flex items-center gap-1">
+                      {canRunCompletion ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void completionMutation.mutateAsync(intern)}
+                          disabled={completionMutation.isPending}
+                        >
+                          <FileDown className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                      {hasPermission('interns.manage') ? (
                       <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
                         <SquarePen className="h-4 w-4" />
                       </Button>
+                      ) : null}
+                      {hasPermission('interns.manage') ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -619,12 +687,18 @@ export function InternsPage() {
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {intern.notes ? <p className="text-sm text-muted-foreground">{intern.notes}</p> : null}
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t('interns.genderLabel', { gender: getGenderLabel(intern.gender) })}
+                  </p>
+                  {intern.notes ? <p className="text-sm text-muted-foreground">{intern.notes}</p> : null}
+                </div>
 
                 <div className="space-y-3">
                   {intern.internships.length === 0 ? (
@@ -668,6 +742,21 @@ export function InternsPage() {
                     ))
                   )}
                 </div>
+
+                {canRunCompletion ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => void completionMutation.mutateAsync(intern)}
+                    disabled={completionMutation.isPending}
+                  >
+                    <FileDown className="h-4 w-4" />
+                    {completionMutation.isPending && completionMutation.variables?.id === intern.id
+                      ? t('interns.completionRunning')
+                      : t('interns.completeIntern')}
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           ))}
