@@ -13,7 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useQueries } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -40,10 +40,11 @@ function buildCalendarGrid(currentMonth: Date) {
 }
 
 export function CalendarPage() {
-  const { token } = useAuth()
+  const { hasPermission, token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
   const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
+  const canManageInterns = hasPermission('interns.manage')
 
   const visibleMonths = useMemo(() => {
     const months = new Map<string, { year: number; month: number }>()
@@ -111,6 +112,10 @@ export function CalendarPage() {
           <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
             {gridDays.map((date) => {
               const isoDate = format(date, 'yyyy-MM-dd')
+              const createInternSearchParams = new URLSearchParams({
+                create: '1',
+                startDate: isoDate,
+              })
               const entries = dayLookup.get(isoDate) ?? []
               const isWeekend = isSaturday(date) || isSunday(date)
               const isMutedDay = isWeekend || !isSameMonth(date, currentMonth)
@@ -124,8 +129,18 @@ export function CalendarPage() {
                     isToday(date) && 'border-primary ring-2 ring-primary/20',
                   )}
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold">{format(date, languagePreference === 'en' ? 'd' : 'd.')}</div>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    {canManageInterns ? (
+                      <Link
+                        to={`/praktikanten?${createInternSearchParams.toString()}`}
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {format(date, languagePreference === 'en' ? 'd' : 'd.')}
+                      </Link>
+                    ) : (
+                      <div className="text-sm font-semibold">{format(date, languagePreference === 'en' ? 'd' : 'd.')}</div>
+                    )}
                     <div className="text-xs text-muted-foreground">{formatWeekday(date)}</div>
                   </div>
 
