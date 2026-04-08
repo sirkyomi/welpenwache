@@ -5,14 +5,16 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isSaturday,
   isSameMonth,
+  isSunday,
   isToday,
   startOfMonth,
   startOfWeek,
   subMonths,
 } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -20,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/features/auth/auth-provider'
 import { useLanguage } from '@/features/localization/language-provider'
 import { api } from '@/lib/api'
+import type { CalendarDayEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function buildCalendarGrid(currentMonth: Date) {
@@ -40,19 +43,43 @@ export function CalendarPage() {
   const { token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
+  const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
 
-  const calendarQuery = useQuery({
-    queryKey: ['calendar', currentMonth.getFullYear(), currentMonth.getMonth() + 1],
-    queryFn: () => api.getCalendarMonth(token!, currentMonth.getFullYear(), currentMonth.getMonth() + 1),
-    enabled: Boolean(token),
+  const visibleMonths = useMemo(() => {
+    const months = new Map<string, { year: number; month: number }>()
+
+    for (const date of gridDays) {
+      const year = date.getFullYear()
+      const month = date.getMonth() + 1
+      const key = `${year}-${month}`
+
+      if (!months.has(key)) {
+        months.set(key, { year, month })
+      }
+    }
+
+    return [...months.values()]
+  }, [gridDays])
+
+  const calendarQueries = useQueries({
+    queries: visibleMonths.map(({ year, month }) => ({
+      queryKey: ['calendar', year, month],
+      queryFn: () => api.getCalendarMonth(token!, year, month),
+      enabled: Boolean(token),
+    })),
   })
 
   const dayLookup = useMemo(() => {
-    const days = calendarQuery.data?.days ?? []
-    return new Map(days.map((day) => [day.date, day.entries]))
-  }, [calendarQuery.data])
+    const days = new Map<string, CalendarDayEntry[]>()
 
-  const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
+    for (const query of calendarQueries) {
+      for (const day of query.data?.days ?? []) {
+        days.set(day.date, day.entries)
+      }
+    }
+
+    return days
+  }, [calendarQueries])
 
   return (
     <section className="space-y-6">
@@ -85,13 +112,15 @@ export function CalendarPage() {
             {gridDays.map((date) => {
               const isoDate = format(date, 'yyyy-MM-dd')
               const entries = dayLookup.get(isoDate) ?? []
+              const isWeekend = isSaturday(date) || isSunday(date)
+              const isMutedDay = isWeekend || !isSameMonth(date, currentMonth)
 
               return (
                 <div
                   key={isoDate}
                   className={cn(
                     'min-h-40 rounded-2xl border border-border/80 bg-card/80 p-3 shadow-sm',
-                    !isSameMonth(date, currentMonth) && 'opacity-45',
+                    isMutedDay && 'opacity-45',
                     isToday(date) && 'border-primary ring-2 ring-primary/20',
                   )}
                 >
