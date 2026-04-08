@@ -90,7 +90,8 @@ export function InternsPage() {
   const [editingIntern, setEditingIntern] = useState<Intern | null>(null)
   const [internPendingDelete, setInternPendingDelete] = useState<Intern | null>(null)
   const [form, setForm] = useState<InternFormState>(createEmptyForm)
-  const canRunCompletion = hasPermission('interns.view') || hasPermission('interns.manage')
+  const canManageInterns = hasPermission('interns.manage')
+  const canRunCompletion = hasPermission('documents.view') || hasPermission('documents.manage')
 
   const internsQuery = useQuery({
     queryKey: ['interns'],
@@ -221,7 +222,7 @@ export function InternsPage() {
   }
 
   useEffect(() => {
-    if (!hasPermission('interns.manage') || !requestedEditInternId || interns.length === 0) {
+    if (!canManageInterns || !requestedEditInternId || interns.length === 0) {
       return
     }
 
@@ -239,7 +240,7 @@ export function InternsPage() {
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [hasPermission, interns, requestedEditInternId, searchParams, setSearchParams])
+  }, [canManageInterns, interns, requestedEditInternId, searchParams, setSearchParams])
 
   const deleteIntern = async (intern: Intern) => {
     await deleteMutation.mutateAsync(intern)
@@ -408,7 +409,7 @@ export function InternsPage() {
             <CardTitle>{t('interns.title')}</CardTitle>
             <CardDescription>{t('interns.description')}</CardDescription>
           </div>
-          {hasPermission('interns.manage') && (
+          {canManageInterns && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button onClick={openCreate}>
@@ -661,7 +662,7 @@ export function InternsPage() {
                     </CardTitle>
                     <CardDescription>{intern.school || t('interns.schoolMissing')}</CardDescription>
                   </div>
-                  {canRunCompletion || hasPermission('interns.manage') ? (
+                  {canRunCompletion || canManageInterns ? (
                     <div className="flex items-center gap-1">
                       {canRunCompletion ? (
                         <Button
@@ -673,20 +674,20 @@ export function InternsPage() {
                           <FileDown className="h-4 w-4" />
                         </Button>
                       ) : null}
-                      {hasPermission('interns.manage') ? (
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
-                        <SquarePen className="h-4 w-4" />
-                      </Button>
+                      {canManageInterns ? (
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(intern)}>
+                          <SquarePen className="h-4 w-4" />
+                        </Button>
                       ) : null}
-                      {hasPermission('interns.manage') ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setInternPendingDelete(intern)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canManageInterns ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setInternPendingDelete(intern)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       ) : null}
                     </div>
                   ) : null}

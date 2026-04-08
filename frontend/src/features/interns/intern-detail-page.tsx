@@ -15,7 +15,8 @@ export function InternDetailPage() {
   const { hasPermission, token } = useAuth()
   const { formatDateRange, t } = useLanguage()
   const { internId } = useParams<{ internId: string }>()
-  const canRunCompletion = hasPermission('interns.view') || hasPermission('interns.manage')
+  const canManageIntern = hasPermission('interns.manage')
+  const canRunCompletion = hasPermission('documents.view') || hasPermission('documents.manage')
 
   const internQuery = useQuery({
     queryKey: ['intern', internId],
@@ -105,7 +106,7 @@ export function InternDetailPage() {
         <Button asChild variant="ghost">
           <Link to="/praktikanten">{t('common.backToOverview')}</Link>
         </Button>
-        {hasPermission('interns.manage') ? (
+        {canManageIntern ? (
           <Button asChild>
             <Link to={`/praktikanten?edit=${intern.id}`}>
               <SquarePen className="h-4 w-4" />
