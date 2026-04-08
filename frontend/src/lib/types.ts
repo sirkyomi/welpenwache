@@ -110,6 +110,8 @@ export interface CalendarDayEntry {
   teamId: string
   teamName: string
   teamColorHex: string
+  supervisorId: string | null
+  supervisorName: string | null
 }
 
 export interface CalendarDay {

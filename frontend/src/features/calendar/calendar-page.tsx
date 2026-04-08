@@ -139,14 +139,31 @@ export function CalendarPage() {
                         <Link
                           key={`${entry.internshipId}-${entry.teamId}`}
                           to={`/praktikanten/${entry.internId}`}
-                          className="block rounded-xl border px-2 py-2 text-xs shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          className="block rounded-2xl border px-2.5 py-2.5 text-xs shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
                           style={{
                             backgroundColor: `${entry.teamColorHex}1A`,
                             borderColor: `${entry.teamColorHex}55`,
                           }}
                         >
-                          <div className="font-semibold">{entry.internName}</div>
-                          <div className="text-[11px] text-muted-foreground">{entry.teamName}</div>
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div
+                              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/40 bg-background/55 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                              style={{ color: entry.teamColorHex }}
+                            >
+                              <span
+                                className="h-1.5 w-1.5 flex-none rounded-full"
+                                style={{ backgroundColor: entry.teamColorHex }}
+                              />
+                              <span className="truncate">{entry.teamName}</span>
+                            </div>
+                          </div>
+                          <div className="text-sm font-semibold leading-tight text-foreground">{entry.internName}</div>
+                          {entry.supervisorName ? (
+                            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <span className="font-medium">{t('interns.supervisor')}:</span>
+                              <span className="truncate">{entry.supervisorName}</span>
+                            </div>
+                          ) : null}
                         </Link>
                       ))
                     )}

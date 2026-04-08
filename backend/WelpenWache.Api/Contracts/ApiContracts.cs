@@ -154,7 +154,9 @@ public sealed record CalendarDayEntryResponse(
     Guid InternshipId,
     Guid TeamId,
     string TeamName,
-    string TeamColorHex);
+    string TeamColorHex,
+    Guid? SupervisorId,
+    string? SupervisorName);
 
 public sealed record CalendarDayResponse(
     DateOnly Date,
