@@ -48,37 +48,41 @@ interface InternFormState {
   internships: InternshipFormState[]
 }
 
-function createEmptyAssignment(): AssignmentFormState {
+function createEmptyAssignment(startDate = ''): AssignmentFormState {
   return {
     teamId: '',
     supervisorId: '',
-    startDate: '',
+    startDate,
     endDate: '',
   }
 }
 
-function createEmptyInternship(): InternshipFormState {
+function createEmptyInternship(startDate = ''): InternshipFormState {
   return {
-    startDate: '',
+    startDate,
     endDate: '',
     note: '',
-    assignments: [createEmptyAssignment()],
+    assignments: [createEmptyAssignment(startDate)],
   }
 }
 
-function createEmptyForm(): InternFormState {
+function createEmptyForm(startDate?: string): InternFormState {
   return {
     firstName: '',
     lastName: '',
     gender: 'male',
     school: '',
     notes: '',
-    internships: [],
+    internships: startDate ? [createEmptyInternship(startDate)] : [],
   }
 }
 
 function getSupervisorsForTeam(teams: Team[], teamId: string) {
   return teams.find((team) => team.id === teamId)?.supervisors ?? []
+}
+
+function normalizeRequestedStartDate(value: string | null) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined
 }
 
 export function InternsPage() {
@@ -190,11 +194,13 @@ export function InternsPage() {
 
   const interns = useMemo(() => internsQuery.data ?? [], [internsQuery.data])
   const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
+  const requestedCreate = searchParams.get('create') === '1'
   const requestedEditInternId = searchParams.get('edit')
+  const requestedStartDate = normalizeRequestedStartDate(searchParams.get('startDate'))
 
-  const openCreate = () => {
+  const openCreate = (startDate?: string) => {
     setEditingIntern(null)
-    setForm(createEmptyForm())
+    setForm(createEmptyForm(startDate))
     setOpen(true)
   }
 
@@ -241,6 +247,23 @@ export function InternsPage() {
 
     return () => window.clearTimeout(timeoutId)
   }, [canManageInterns, interns, requestedEditInternId, searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!canManageInterns || !requestedCreate) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      openCreate(requestedStartDate)
+
+      const nextSearchParams = new URLSearchParams(searchParams)
+      nextSearchParams.delete('create')
+      nextSearchParams.delete('startDate')
+      setSearchParams(nextSearchParams, { replace: true })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [canManageInterns, requestedCreate, requestedStartDate, searchParams, setSearchParams])
 
   const deleteIntern = async (intern: Intern) => {
     await deleteMutation.mutateAsync(intern)
@@ -410,9 +433,19 @@ export function InternsPage() {
             <CardDescription>{t('interns.description')}</CardDescription>
           </div>
           {canManageInterns && (
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog
+              open={open}
+              onOpenChange={(nextOpen) => {
+                setOpen(nextOpen)
+
+                if (!nextOpen) {
+                  setEditingIntern(null)
+                  setForm(createEmptyForm())
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button onClick={openCreate}>
+                <Button onClick={() => openCreate()}>
                   <Plus className="h-4 w-4" />
                   {t('interns.create')}
                 </Button>
