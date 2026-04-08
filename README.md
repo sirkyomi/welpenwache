@@ -140,7 +140,17 @@ Relevant permissions:
 
 ### Example Configuration
 
-`appsettings.json` can configure both the storage folder and the placeholder defaults used during document generation:
+`DocumentStorage` is required so the app knows where uploaded DOCX templates live. `CompletionDocuments` is optional. If you do not configure it, the built-in default values from the shipped `appsettings.json` are used.
+
+```json
+{
+  "DocumentStorage": {
+    "BasePath": "C:\\ProgramData\\WelpenWache\\DocumentTemplates"
+  }
+}
+```
+
+Only add `CompletionDocuments` if you want to override the default gender or salutation texts:
 
 ```json
 {
@@ -299,7 +309,23 @@ Users can run WelpenWache in two supported ways: IIS or Docker.
 4. Extract the zip file to the final site folder.
 5. Create an IIS site or IIS application that points to that folder.
 6. Use an application pool with `No Managed Code`.
-7. Adjust `appsettings.json` in the extracted IIS package and set at least the database connection, JWT signing key, document template folder, genders, and salutations:
+7. Adjust `appsettings.json` in the extracted IIS package and set at least the database connection, JWT signing key, and document template folder:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=<SERVER>;Database=WelpenWacheDb;User Id=<USER>;Password=<PASSWORD>;TrustServerCertificate=True;"
+  },
+  "Jwt": {
+    "SigningKey": "<A_SECRET_WITH_AT_LEAST_32_CHARACTERS>"
+  },
+  "DocumentStorage": {
+    "BasePath": "C:\\WelpenWache\\DocumentTemplates"
+  }
+}
+```
+
+`CompletionDocuments` is optional in IIS deployments. If you do not add it, WelpenWache uses the shipped default values. Only add this block when you want different gender or salutation texts:
 
 ```json
 {
@@ -372,18 +398,6 @@ services:
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=WelpenWacheDb;User Id=sa;Password=<YOUR_SQL_PASSWORD>;TrustServerCertificate=True;"
       Jwt__SigningKey: "<A_SECRET_WITH_AT_LEAST_32_CHARACTERS>"
       DocumentStorage__BasePath: "/app/document-templates"
-      CompletionDocuments__Genders__male__de: "M\u00E4nnlich"
-      CompletionDocuments__Genders__male__en: "Male"
-      CompletionDocuments__Genders__female__de: "Weiblich"
-      CompletionDocuments__Genders__female__en: "Female"
-      CompletionDocuments__Genders__diverse__de: "Divers"
-      CompletionDocuments__Genders__diverse__en: "Diverse"
-      CompletionDocuments__Salutations__male__de: "Herr"
-      CompletionDocuments__Salutations__male__en: "Mr."
-      CompletionDocuments__Salutations__female__de: "Frau"
-      CompletionDocuments__Salutations__female__en: "Ms."
-      CompletionDocuments__Salutations__diverse__de: ""
-      CompletionDocuments__Salutations__diverse__en: "Mx."
     volumes:
       - ./document-templates:/app/document-templates
 
@@ -397,6 +411,28 @@ services:
 
 volumes:
   sqlserver-data:
+```
+
+`CompletionDocuments` is also optional in Docker. If you do not add any `CompletionDocuments__...` variables, the container uses the default values from the packaged `appsettings.json`.
+
+Only add these environment variables when you want to override the default texts:
+
+```yaml
+services:
+  welpenwache:
+    environment:
+      CompletionDocuments__Genders__male__de: "M\u00E4nnlich"
+      CompletionDocuments__Genders__male__en: "Male"
+      CompletionDocuments__Genders__female__de: "Weiblich"
+      CompletionDocuments__Genders__female__en: "Female"
+      CompletionDocuments__Genders__diverse__de: "Divers"
+      CompletionDocuments__Genders__diverse__en: "Diverse"
+      CompletionDocuments__Salutations__male__de: "Herr"
+      CompletionDocuments__Salutations__male__en: "Mr."
+      CompletionDocuments__Salutations__female__de: "Frau"
+      CompletionDocuments__Salutations__female__en: "Ms."
+      CompletionDocuments__Salutations__diverse__de: ""
+      CompletionDocuments__Salutations__diverse__en: "Mx."
 ```
 
 Start the stack:
