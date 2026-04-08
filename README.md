@@ -4,10 +4,12 @@ Interne Webanwendung zur Verwaltung von Praktikanten mit React-Frontend, .NET 10
 
 ## Funktionsumfang
 
-- Praktikanten anlegen und verwalten
+- Praktikanten anlegen, verwalten und mit Geschlecht pflegen
 - Teams anlegen und farblich kennzeichnen
 - Zeitbasierte Teamzuweisungen innerhalb eines Praktikums pflegen
 - Monatskalender als Startseite mit Tagesübersicht pro Praktikant und Team
+- Administrierbare Dokumentvorlagen für Abschlussdokumente hochladen und verwalten
+- Abschluss-Workflow pro Praktikant mit direktem Download generierter Dokumente
 - Initialer Administrator beim ersten Start
 - Weitere Benutzerkonten durch Administratoren
 - Rechte für Praktikanten und Teams
@@ -22,14 +24,15 @@ Interne Webanwendung zur Verwaltung von Praktikanten mit React-Frontend, .NET 10
 - .NET SDK 10
 - Node.js 24+
 - Docker Desktop für die einfache SQL-Server-Variante
+- Für Dokumentvorlagen ein beschreibbarer absoluter Pfad auf dem Server
 
 ## Release-Artefakte
 
 - Jeder Release erstellt ein GitHub Release mit einem IIS-Paket als `welpenwache-iis-<version>.zip`.
-- Das IIS-Paket enthaelt bewusst keine `appsettings.Development.json`.
-- Zusaetzlich wird ein Docker-Image nach `ghcr.io/sirkyomi/welpenwache:<version>` und `ghcr.io/sirkyomi/welpenwache:latest` veroeffentlicht.
+- Das IIS-Paket enthält bewusst keine `appsettings.Development.json`.
+- Zusätzlich wird ein Docker-Image nach `ghcr.io/sirkyomi/welpenwache:<version>` und `ghcr.io/sirkyomi/welpenwache:latest` veröffentlicht.
 
-## Compose-Beispiel fuer das Release-Image
+## Compose-Beispiel für das Release-Image
 
 ```yaml
 services:
@@ -72,10 +75,75 @@ PowerShell:
 
 ```powershell
 $env:ConnectionStrings__DefaultConnection="Server=localhost,14333;Database=WelpenWacheDb;User Id=sa;Password=<DEIN_PASSWORT>;TrustServerCertificate=True;"
+$env:DocumentStorage__BasePath="C:\ProgramData\WelpenWache\DocumentTemplates"
 dotnet run --project .\backend\WelpenWache.Api\WelpenWache.Api.csproj
 ```
 
 Die API läuft standardmäßig auf `http://localhost:5150`.
+
+## Dokumentvorlagen konfigurieren
+
+Für den Abschluss-Workflow werden DOCX-Vorlagen im Dateisystem gespeichert. In der Datenbank liegt nur der relative Pfad.
+
+Beispiel in `appsettings.json`:
+
+```json
+{
+  "DocumentStorage": {
+    "BasePath": "C:\\ProgramData\\WelpenWache\\DocumentTemplates"
+  },
+  "CompletionDocuments": {
+    "Salutations": {
+      "male": {
+        "de": "Herr",
+        "en": "Mr."
+      },
+      "female": {
+        "de": "Frau",
+        "en": "Ms."
+      },
+      "diverse": {
+        "de": "Guten Tag",
+        "en": "Mx."
+      }
+    }
+  }
+}
+```
+
+Wichtig:
+
+- `DocumentStorage:BasePath` muss ein absoluter Pfad sein.
+- Vorlagen werden im Admin-Bereich unter `Dokumentvorlagen` hochgeladen.
+- Aktive Vorlagen mit dem Zweck `completion` werden beim Abschluss eines Praktikanten automatisch erzeugt.
+- Bei mehreren aktiven Vorlagen liefert der Workflow ein ZIP-Archiv, bei genau einer Vorlage direkt die DOCX-Datei.
+
+## Vorlagen-Syntax
+
+Die Dokumentgenerierung verwendet [`DocxTemplater`](https://github.com/Amberg/DocxTemplater). Dadurch bleiben Formatierung und Layout der DOCX-Vorlage erhalten.
+
+Unterstützte Platzhalter in der Vorlage sind zum Beispiel:
+
+- `{{first_name}}`
+- `{{last_name}}`
+- `{{full_name}}`
+- `{{salutation}}`
+- `{{start_date}}`
+- `{{end_date}}`
+- `{{team}}`
+- `{{gender}}`
+- `{{school}}`
+- `{{notes}}`
+
+Für wiederholte Bereiche stehen Sammlungen bereit, zum Beispiel:
+
+```text
+{{#team_assignments}}
+- {{.team_name}} ({{.start_date}} - {{.end_date}})
+{{/team_assignments}}
+```
+
+Zusätzlich gibt es `internships` mit verschachtelten `assignments`, falls Vorlagen mehrere Praktikumszeiträume getrennt darstellen sollen.
 
 ## Frontend starten
 
@@ -96,8 +164,10 @@ Backend und Frontend werden immer gemeinsam ausgeliefert und verwenden deshalb g
 
 1. Frontend öffnen
 2. Administrator-Benutzername und Passwort anlegen
-3. Danach Teams und Praktikanten pflegen
-4. Teamwechsel innerhalb eines Praktikums direkt pro Abschnitt hinterlegen
+3. Danach Teams, Praktikanten und Geschlecht pflegen
+4. Im Admin-Bereich Dokumentvorlagen für den Zweck `completion` hochladen
+5. Teamwechsel innerhalb eines Praktikums direkt pro Abschnitt hinterlegen
+6. In der Praktikantenansicht den Abschluss-Workflow auslösen und die generierten Dokumente herunterladen
 
 ## Build und Prüfung
 
@@ -119,3 +189,4 @@ npm run build
 - Standardmäßig ist im Backend `LocalDB` konfiguriert. Auf diesem Rechner war `LocalDB` nicht installiert, daher ist die Docker-Variante der reproduzierbare Startweg.
 - EF-Core-Migrationen liegen in `backend/WelpenWache.Api/Migrations`.
 - UI-Texte sind auf Deutsch, Quellcode und API-Namen auf Englisch.
+- Bestehende Praktikanten erhalten über die Migration initial das Geschlecht `male` und können danach im UI angepasst werden.

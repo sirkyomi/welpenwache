@@ -2,14 +2,17 @@ using System.Security.Claims;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using WelpenWache.Api.Contracts;
 using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
 using WelpenWache.Api.Security;
+using WelpenWache.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 var jwtOptions = JwtOptions.Resolve(builder.Configuration, builder.Environment);
@@ -19,7 +22,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseSqlServer(DesignTimeDbContextFactory.ResolveConnectionString(builder.Configuration));
 });
+builder.Services.Configure<DocumentStorageOptions>(builder.Configuration.GetSection("DocumentStorage"));
+builder.Services.Configure<CompletionDocumentOptions>(builder.Configuration.GetSection("CompletionDocuments"));
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddSingleton<TemplateStorageService>();
+builder.Services.AddSingleton<CompletionDocumentService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -54,7 +61,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("frontend", policy =>
         policy.WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"])
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .WithExposedHeaders("Content-Disposition"));
 });
 
 var app = builder.Build();
@@ -582,6 +590,7 @@ internsGroup.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.InternsM
 
     existingIntern.FirstName = request.FirstName.Trim();
     existingIntern.LastName = request.LastName.Trim();
+    existingIntern.Gender = InternGenderCatalog.Normalize(request.Gender);
     existingIntern.School = request.School?.Trim();
     existingIntern.Notes = request.Notes?.Trim();
 
@@ -645,6 +654,190 @@ internsGroup.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.Inter
 
     dbContext.Interns.Remove(intern);
     await dbContext.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+internsGroup.MapPost("/{id:guid}/completion-documents", [Authorize(Policy = PermissionCatalog.InternsManage)] async (
+    Guid id,
+    ApplicationDbContext dbContext,
+    CompletionDocumentService completionDocumentService,
+    CancellationToken cancellationToken) =>
+{
+    var intern = await dbContext.Interns
+        .AsNoTracking()
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Team)
+        .Include(item => item.Internships)
+            .ThenInclude(internship => internship.Assignments)
+                .ThenInclude(assignment => assignment.Supervisor)
+        .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+    if (intern is null)
+    {
+        return Results.NotFound(new ApiError("INTERN_NOT_FOUND", "Der Praktikant wurde nicht gefunden."));
+    }
+
+    var templates = await dbContext.DocumentTemplates
+        .AsNoTracking()
+        .Where(item => item.IsActive && item.Purpose == DocumentTemplatePurposeCatalog.Completion)
+        .OrderBy(item => item.Name)
+        .ToListAsync(cancellationToken);
+
+    if (templates.Count == 0)
+    {
+        return Results.BadRequest(new ApiError(
+            "NO_COMPLETION_TEMPLATES",
+            "Für den Abschlussworkflow sind keine aktiven Vorlagen hinterlegt."));
+    }
+
+    var generatedDocuments = await completionDocumentService.GenerateAsync(intern, templates, cancellationToken);
+    var download = generatedDocuments.Count == 1
+        ? generatedDocuments[0]
+        : completionDocumentService.CreateArchive(intern, generatedDocuments);
+
+    return Results.File(download.Content, download.ContentType, download.FileName);
+});
+
+var documentTemplatesGroup = app.MapGroup("/api/document-templates")
+    .RequireAuthorization(Policies.AdminOnly);
+
+documentTemplatesGroup.MapGet("/", async (string? purpose, ApplicationDbContext dbContext, CancellationToken cancellationToken) =>
+{
+    var query = dbContext.DocumentTemplates.AsNoTracking();
+
+    if (!string.IsNullOrWhiteSpace(purpose))
+    {
+        var normalizedPurpose = NormalizeTemplatePurpose(purpose);
+        query = query.Where(item => item.Purpose == normalizedPurpose);
+    }
+
+    var templates = await query
+        .OrderBy(item => item.Purpose)
+        .ThenBy(item => item.Language)
+        .ThenBy(item => item.Name)
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(templates.Select(item => item.ToResponse()));
+});
+
+documentTemplatesGroup.MapPost("/", async (
+    [FromForm] DocumentTemplateUpsertForm form,
+    ApplicationDbContext dbContext,
+    TemplateStorageService templateStorageService,
+    CancellationToken cancellationToken) =>
+{
+    var validationError = ValidateDocumentTemplateForm(form, fileRequired: true);
+    if (validationError is not null)
+    {
+        return Results.BadRequest(validationError);
+    }
+
+    StoredTemplateFile? storedFile = null;
+
+    try
+    {
+        storedFile = await templateStorageService.SaveTemplateAsync(form.File!, cancellationToken);
+
+        var template = new DocumentTemplate
+        {
+            Name = form.Name.Trim(),
+            Purpose = NormalizeTemplatePurpose(form.Purpose),
+            Language = NormalizeTemplateLanguage(form.Language),
+            RelativeFilePath = storedFile.RelativeFilePath,
+            OriginalFileName = storedFile.OriginalFileName,
+            IsActive = form.IsActive
+        };
+
+        dbContext.DocumentTemplates.Add(template);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Results.Created($"/api/document-templates/{template.Id}", template.ToResponse());
+    }
+    catch (InvalidOperationException exception)
+    {
+        if (storedFile is not null)
+        {
+            templateStorageService.DeleteTemplate(storedFile.RelativeFilePath);
+        }
+
+        return Results.BadRequest(new ApiError("VALIDATION_ERROR", exception.Message));
+    }
+})
+    .DisableAntiforgery();
+
+documentTemplatesGroup.MapPut("/{id:guid}", async (
+    Guid id,
+    [FromForm] DocumentTemplateUpsertForm form,
+    ApplicationDbContext dbContext,
+    TemplateStorageService templateStorageService,
+    CancellationToken cancellationToken) =>
+{
+    var template = await dbContext.DocumentTemplates.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+    if (template is null)
+    {
+        return Results.NotFound(new ApiError("TEMPLATE_NOT_FOUND", "Die Dokumentvorlage wurde nicht gefunden."));
+    }
+
+    var validationError = ValidateDocumentTemplateForm(form, fileRequired: false);
+    if (validationError is not null)
+    {
+        return Results.BadRequest(validationError);
+    }
+
+    var previousRelativeFilePath = template.RelativeFilePath;
+    StoredTemplateFile? storedFile = null;
+
+    try
+    {
+        if (form.File is not null)
+        {
+            storedFile = await templateStorageService.SaveTemplateAsync(form.File, cancellationToken);
+            template.RelativeFilePath = storedFile.RelativeFilePath;
+            template.OriginalFileName = storedFile.OriginalFileName;
+        }
+
+        template.Name = form.Name.Trim();
+        template.Purpose = NormalizeTemplatePurpose(form.Purpose);
+        template.Language = NormalizeTemplateLanguage(form.Language);
+        template.IsActive = form.IsActive;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (storedFile is not null)
+        {
+            templateStorageService.DeleteTemplate(previousRelativeFilePath);
+        }
+
+        return Results.Ok(template.ToResponse());
+    }
+    catch (InvalidOperationException exception)
+    {
+        if (storedFile is not null)
+        {
+            templateStorageService.DeleteTemplate(storedFile.RelativeFilePath);
+        }
+
+        return Results.BadRequest(new ApiError("VALIDATION_ERROR", exception.Message));
+    }
+})
+    .DisableAntiforgery();
+
+documentTemplatesGroup.MapDelete("/{id:guid}", async (
+    Guid id,
+    ApplicationDbContext dbContext,
+    TemplateStorageService templateStorageService,
+    CancellationToken cancellationToken) =>
+{
+    var template = await dbContext.DocumentTemplates.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+    if (template is null)
+    {
+        return Results.NotFound(new ApiError("TEMPLATE_NOT_FOUND", "Die Dokumentvorlage wurde nicht gefunden."));
+    }
+
+    dbContext.DocumentTemplates.Remove(template);
+    await dbContext.SaveChangesAsync(cancellationToken);
+    templateStorageService.DeleteTemplate(template.RelativeFilePath);
     return Results.NoContent();
 });
 
@@ -856,6 +1049,11 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
         return new ApiError("VALIDATION_ERROR", "Vorname und Nachname sind erforderlich.");
     }
 
+    if (!InternGenderCatalog.IsValid(request.Gender))
+    {
+        return new ApiError("VALIDATION_ERROR", "Das Geschlecht ist ungültig.");
+    }
+
     var internships = request.Internships.OrderBy(internship => internship.StartDate).ToList();
     var teamIds = internships
         .SelectMany(internship => internship.Assignments)
@@ -961,6 +1159,72 @@ static async Task<ApiError?> ValidateInternRequestAsync(InternRequest request, A
 static string NormalizeKey(string value) => value.Trim().ToUpperInvariant();
 
 static string NormalizeColor(string? colorHex) => string.IsNullOrWhiteSpace(colorHex) ? "#2563EB" : colorHex.ToUpperInvariant();
+
+static string NormalizeTemplatePurpose(string value)
+{
+    var normalizedValue = DocumentTemplatePurposeCatalog.Normalize(value);
+    if (!DocumentTemplatePurposeCatalog.IsValid(normalizedValue))
+    {
+        throw new InvalidOperationException("Der Vorlagenzweck ist ungültig.");
+    }
+
+    return normalizedValue;
+}
+
+static string NormalizeTemplateLanguage(string value)
+{
+    var normalizedValue = value.Trim().ToLowerInvariant();
+    if (!UserAccount.IsValidLanguagePreference(normalizedValue))
+    {
+        throw new InvalidOperationException("Die Vorlagensprache ist ungültig.");
+    }
+
+    return normalizedValue;
+}
+
+static ApiError? ValidateDocumentTemplateForm(DocumentTemplateUpsertForm form, bool fileRequired)
+{
+    if (string.IsNullOrWhiteSpace(form.Name))
+    {
+        return new ApiError("VALIDATION_ERROR", "Der Name der Vorlage ist erforderlich.");
+    }
+
+    try
+    {
+        NormalizeTemplatePurpose(form.Purpose);
+        NormalizeTemplateLanguage(form.Language);
+    }
+    catch (InvalidOperationException exception)
+    {
+        return new ApiError("VALIDATION_ERROR", exception.Message);
+    }
+
+    if (fileRequired)
+    {
+        try
+        {
+            TemplateStorageService.ValidateTemplateFile(form.File);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return new ApiError("VALIDATION_ERROR", exception.Message);
+        }
+    }
+
+    if (form.File is not null)
+    {
+        try
+        {
+            TemplateStorageService.ValidateTemplateFile(form.File);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return new ApiError("VALIDATION_ERROR", exception.Message);
+        }
+    }
+
+    return null;
+}
 
 static void SyncSupervisors(
     ApplicationDbContext dbContext,
@@ -1073,6 +1337,7 @@ static class MappingExtensions
             intern.FirstName,
             intern.LastName,
             intern.FullName,
+            InternGenderCatalog.Normalize(intern.Gender),
             intern.School,
             intern.Notes,
             intern.Internships
@@ -1101,6 +1366,7 @@ static class MappingExtensions
         {
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
+            Gender = InternGenderCatalog.Normalize(request.Gender),
             School = request.School?.Trim(),
             Notes = request.Notes?.Trim(),
             Internships = request.Internships
@@ -1127,6 +1393,17 @@ static class MappingExtensions
     public static SupervisorResponse ToResponse(this Supervisor supervisor) =>
         new(supervisor.Id, supervisor.TeamId, supervisor.Name, supervisor.Notes);
 
+    public static DocumentTemplateResponse ToResponse(this DocumentTemplate template) =>
+        new(
+            template.Id,
+            template.Name,
+            template.Purpose,
+            NormalizeLanguagePreference(template.Language),
+            template.RelativeFilePath,
+            template.OriginalFileName,
+            template.IsActive,
+            template.UploadedUtc);
+
     private static string NormalizeThemePreference(string? value) =>
         UserAccount.IsValidThemePreference(value ?? string.Empty)
             ? value!
@@ -1136,4 +1413,17 @@ static class MappingExtensions
         UserAccount.IsValidLanguagePreference(value ?? string.Empty)
             ? value!
             : UserAccount.LanguageGerman;
+}
+
+sealed class DocumentTemplateUpsertForm
+{
+    public string Name { get; init; } = string.Empty;
+
+    public string Purpose { get; init; } = string.Empty;
+
+    public string Language { get; init; } = UserAccount.LanguageGerman;
+
+    public bool IsActive { get; init; } = true;
+
+    public IFormFile? File { get; init; }
 }

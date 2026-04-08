@@ -6,6 +6,8 @@ export type Permission =
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type LanguagePreference = 'de' | 'en'
+export type Gender = 'male' | 'female' | 'diverse'
+export type DocumentTemplatePurpose = 'completion'
 
 export interface SetupStatusResponse {
   requiresSetup: boolean
@@ -82,9 +84,21 @@ export interface Intern {
   firstName: string
   lastName: string
   fullName: string
+  gender: Gender
   school: string | null
   notes: string | null
   internships: Internship[]
+}
+
+export interface DocumentTemplate {
+  id: string
+  name: string
+  purpose: DocumentTemplatePurpose
+  language: LanguagePreference
+  relativeFilePath: string
+  isActive: boolean
+  originalFileName: string
+  uploadedUtc: string
 }
 
 export interface CalendarDayEntry {
