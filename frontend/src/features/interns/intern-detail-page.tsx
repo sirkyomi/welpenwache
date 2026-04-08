@@ -1,11 +1,16 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CalendarDays, FileDown, GraduationCap, NotebookText, SquarePen, UsersRound } from 'lucide-react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
+import {
+  appendReturnTo,
+  buildCalendarReturnTarget,
+  readCalendarReturnTo,
+} from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import { downloadBlob } from '@/lib/download'
@@ -15,8 +20,10 @@ export function InternDetailPage() {
   const { hasPermission, token } = useAuth()
   const { formatDateRange, t } = useLanguage()
   const { internId } = useParams<{ internId: string }>()
+  const [searchParams] = useSearchParams()
   const canManageIntern = hasPermission('interns.manage')
   const canRunCompletion = hasPermission('documents.view') || hasPermission('documents.manage')
+  const calendarReturnTo = readCalendarReturnTo(searchParams) ?? buildCalendarReturnTarget('/', '')
 
   const internQuery = useQuery({
     queryKey: ['intern', internId],
@@ -98,7 +105,7 @@ export function InternDetailPage() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
-          <Link to="/">
+          <Link to={calendarReturnTo}>
             <ArrowLeft className="h-4 w-4" />
             {t('common.backToCalendar')}
           </Link>
@@ -208,7 +215,7 @@ export function InternDetailPage() {
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <Link
-                            to={`/teams/${assignment.teamId}`}
+                            to={appendReturnTo(`/teams/${assignment.teamId}`, calendarReturnTo)}
                             className="text-base font-semibold transition-colors hover:text-primary focus:outline-none focus:text-primary"
                           >
                             {assignment.teamName}
