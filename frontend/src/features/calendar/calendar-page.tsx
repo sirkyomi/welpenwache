@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import {
   addDays,
   addMonths,
@@ -15,11 +15,16 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useQueries } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
+import {
+  appendReturnTo,
+  formatCalendarMonth,
+  parseCalendarMonth,
+} from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
 import { api } from '@/lib/api'
 import type { CalendarDayEntry } from '@/lib/types'
@@ -42,9 +47,17 @@ function buildCalendarGrid(currentMonth: Date) {
 export function CalendarPage() {
   const { hasPermission, token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
-  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const currentMonth = parseCalendarMonth(searchParams.get('month')) ?? startOfMonth(new Date())
   const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
   const canManageInterns = hasPermission('interns.manage')
+  const calendarReturnTo = `/?month=${formatCalendarMonth(currentMonth)}`
+
+  const setDisplayedMonth = (month: Date) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('month', formatCalendarMonth(month))
+    setSearchParams(nextSearchParams)
+  }
 
   const visibleMonths = useMemo(() => {
     const months = new Map<string, { year: number; month: number }>()
@@ -91,11 +104,11 @@ export function CalendarPage() {
             <CardDescription>{t('calendar.description')}</CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentMonth((value) => subMonths(value, 1))}>
+            <Button variant="outline" size="sm" onClick={() => setDisplayedMonth(subMonths(currentMonth, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-44 text-center text-sm font-semibold">{formatMonthYear(currentMonth)}</div>
-            <Button variant="outline" size="sm" onClick={() => setCurrentMonth((value) => addMonths(value, 1))}>
+            <Button variant="outline" size="sm" onClick={() => setDisplayedMonth(addMonths(currentMonth, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -132,7 +145,7 @@ export function CalendarPage() {
                   <div className="mb-3 flex items-center justify-between gap-2">
                     {canManageInterns ? (
                       <Link
-                        to={`/praktikanten?${createInternSearchParams.toString()}`}
+                        to={appendReturnTo('/praktikanten', calendarReturnTo, createInternSearchParams)}
                         className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-semibold transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -153,7 +166,7 @@ export function CalendarPage() {
                       entries.map((entry) => (
                         <Link
                           key={`${entry.internshipId}-${entry.teamId}`}
-                          to={`/praktikanten/${entry.internId}`}
+                          to={appendReturnTo(`/praktikanten/${entry.internId}`, calendarReturnTo)}
                           className="block rounded-2xl border px-2.5 py-2.5 text-xs shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
                           style={{
                             backgroundColor: `${entry.teamColorHex}1A`,

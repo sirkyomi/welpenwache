@@ -1,11 +1,16 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, BadgeInfo, CalendarDays, Palette, SquarePen, UserRound, UsersRound } from 'lucide-react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
+import {
+  appendReturnTo,
+  buildCalendarReturnTarget,
+  readCalendarReturnTo,
+} from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 
@@ -13,6 +18,8 @@ export function TeamDetailPage() {
   const { hasPermission, token } = useAuth()
   const { formatDateRange, t } = useLanguage()
   const { teamId } = useParams<{ teamId: string }>()
+  const [searchParams] = useSearchParams()
+  const calendarReturnTo = readCalendarReturnTo(searchParams) ?? buildCalendarReturnTarget('/', '')
 
   const teamQuery = useQuery({
     queryKey: ['team', teamId],
@@ -67,7 +74,7 @@ export function TeamDetailPage() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
-          <Link to="/">
+          <Link to={calendarReturnTo}>
             <ArrowLeft className="h-4 w-4" />
             {t('common.backToCalendar')}
           </Link>
@@ -189,7 +196,7 @@ export function TeamDetailPage() {
                 <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
                   <p className="text-sm text-muted-foreground">{t('teams.intern')}</p>
                   <Link
-                    to={`/praktikanten/${assignment.internId}`}
+                    to={appendReturnTo(`/praktikanten/${assignment.internId}`, calendarReturnTo)}
                     className="mt-1 inline-block text-base font-semibold transition-colors hover:text-primary focus:outline-none focus:text-primary"
                   >
                     {assignment.internName}

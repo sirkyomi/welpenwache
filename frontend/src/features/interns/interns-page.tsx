@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/auth-provider'
+import { appendReturnTo, parseCalendarReturnTo } from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import { downloadBlob } from '@/lib/download'
@@ -292,6 +293,7 @@ export function InternsPage() {
   const requestedCreate = searchParams.get('create') === '1'
   const requestedEditInternId = searchParams.get('edit')
   const requestedStartDate = normalizeRequestedStartDate(searchParams.get('startDate'))
+  const calendarReturnTo = parseCalendarReturnTo(searchParams.get('returnTo'))
   const collator = useMemo(
     () => new Intl.Collator(languagePreference === 'de' ? 'de-DE' : 'en-GB', { numeric: true, sensitivity: 'base' }),
     [languagePreference],
@@ -1125,7 +1127,7 @@ export function InternsPage() {
                               <CardTitle className="flex items-center gap-2">
                                 <UsersRound className="h-4 w-4 text-primary" />
                                 <Link
-                                  to={`/praktikanten/${item.intern.id}`}
+                                  to={appendReturnTo(`/praktikanten/${item.intern.id}`, calendarReturnTo)}
                                   className="transition-colors hover:text-primary focus:outline-none focus:text-primary"
                                 >
                                   {item.intern.fullName}
