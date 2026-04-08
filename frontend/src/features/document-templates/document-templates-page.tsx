@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileCog, Plus, SquarePen, Trash2 } from 'lucide-react'
+import { ChevronDown, FileCog, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +23,7 @@ import { useAuth } from '@/features/auth/auth-provider'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import type { DocumentTemplate, DocumentTemplatePurpose, LanguagePreference } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface DocumentTemplateFormState {
   name: string
@@ -41,26 +42,33 @@ const emptyForm: DocumentTemplateFormState = {
 }
 
 const scalarPlaceholders = [
-  'first_name',
-  'last_name',
-  'full_name',
-  'salutation',
-  'gender',
-  'school',
-  'notes',
-  'start_date',
-  'end_date',
-  'team',
-  'internship_count',
+  { key: 'first_name', descriptionKey: 'documentTemplates.placeholderDescriptions.first_name' },
+  { key: 'last_name', descriptionKey: 'documentTemplates.placeholderDescriptions.last_name' },
+  { key: 'full_name', descriptionKey: 'documentTemplates.placeholderDescriptions.full_name' },
+  { key: 'salutation', descriptionKey: 'documentTemplates.placeholderDescriptions.salutation' },
+  { key: 'gender', descriptionKey: 'documentTemplates.placeholderDescriptions.gender' },
+  { key: 'school', descriptionKey: 'documentTemplates.placeholderDescriptions.school' },
+  { key: 'notes', descriptionKey: 'documentTemplates.placeholderDescriptions.notes' },
+  { key: 'start_date', descriptionKey: 'documentTemplates.placeholderDescriptions.start_date' },
+  { key: 'end_date', descriptionKey: 'documentTemplates.placeholderDescriptions.end_date' },
+  { key: 'export_date', descriptionKey: 'documentTemplates.placeholderDescriptions.export_date' },
+  { key: 'team', descriptionKey: 'documentTemplates.placeholderDescriptions.team' },
+  { key: 'internship_count', descriptionKey: 'documentTemplates.placeholderDescriptions.internship_count' },
 ] as const
 
 const assignmentPlaceholders = [
-  'team_name',
-  'supervisor_name',
-  'start_date',
-  'end_date',
-  'internship_start_date',
-  'internship_end_date',
+  { key: 'team_name', descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.team_name' },
+  { key: 'supervisor_name', descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.supervisor_name' },
+  { key: 'start_date', descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.start_date' },
+  { key: 'end_date', descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.end_date' },
+  {
+    key: 'internship_start_date',
+    descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.internship_start_date',
+  },
+  {
+    key: 'internship_end_date',
+    descriptionKey: 'documentTemplates.assignmentPlaceholderDescriptions.internship_end_date',
+  },
 ] as const
 
 export function DocumentTemplatesPage() {
@@ -70,8 +78,10 @@ export function DocumentTemplatesPage() {
   const [open, setOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null)
   const [templatePendingDelete, setTemplatePendingDelete] = useState<DocumentTemplate | null>(null)
+  const [placeholdersOpen, setPlaceholdersOpen] = useState(false)
   const [form, setForm] = useState<DocumentTemplateFormState>(emptyForm)
   const canManageTemplates = hasPermission('documents.manage')
+  const placeholdersSectionId = 'document-template-placeholders'
 
   const templatesQuery = useQuery({
     queryKey: ['document-templates'],
@@ -362,58 +372,80 @@ export function DocumentTemplatesPage() {
           ) : null}
 
           <Card className="border-border/70 bg-card/80 lg:col-span-2">
-            <CardHeader>
-              <CardTitle>{t('documentTemplates.placeholdersTitle')}</CardTitle>
-              <CardDescription>{t('documentTemplates.placeholdersDescription')}</CardDescription>
+            <CardHeader className="p-0">
+              <button
+                type="button"
+                className="flex w-full items-start justify-between gap-4 rounded-t-xl p-6 text-left transition-colors hover:bg-background/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-expanded={placeholdersOpen}
+                aria-controls={placeholdersSectionId}
+                onClick={() => setPlaceholdersOpen((current) => !current)}
+              >
+                <div>
+                  <CardTitle>{t('documentTemplates.placeholdersTitle')}</CardTitle>
+                  <CardDescription>{t('documentTemplates.placeholdersDescription')}</CardDescription>
+                </div>
+                <div className="flex items-center text-muted-foreground">
+                  <ChevronDown
+                    className={cn('h-6 w-6 transition-transform duration-300', placeholdersOpen ? 'rotate-180' : '')}
+                  />
+                </div>
+              </button>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t('documentTemplates.placeholdersSimple')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {scalarPlaceholders.map((placeholder) => (
-                    <code
-                      key={placeholder}
-                      className="rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 text-xs"
-                    >
-                      {`{{${placeholder}}}`}
-                    </code>
-                  ))}
-                </div>
-              </div>
+            <div
+              id={placeholdersSectionId}
+              className={cn(
+                'grid transition-all duration-300 ease-out',
+                placeholdersOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+              )}
+            >
+              <div className="overflow-hidden">
+                <CardContent className="space-y-5">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t('documentTemplates.placeholdersSimple')}</p>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {scalarPlaceholders.map((placeholder) => (
+                        <div key={placeholder.key} className="rounded-2xl border border-border/70 bg-background/80 p-3">
+                          <code className="text-xs font-semibold text-foreground">{`{{${placeholder.key}}}`}</code>
+                          <p className="mt-2 text-sm text-muted-foreground">{t(placeholder.descriptionKey)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t('documentTemplates.placeholdersAssignments')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {assignmentPlaceholders.map((placeholder) => (
-                    <code
-                      key={placeholder}
-                      className="rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 text-xs"
-                    >
-                      {`{{.${placeholder}}}`}
-                    </code>
-                  ))}
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t('documentTemplates.placeholdersAssignments')}</p>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {assignmentPlaceholders.map((placeholder) => (
+                        <div key={placeholder.key} className="rounded-2xl border border-border/70 bg-background/80 p-3">
+                          <code className="text-xs font-semibold text-foreground">{`{{.${placeholder.key}}}`}</code>
+                          <p className="mt-2 text-sm text-muted-foreground">{t(placeholder.descriptionKey)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t('documentTemplates.placeholdersLoopTitle')}</p>
-                  <pre className="overflow-x-auto rounded-2xl border border-border/70 bg-background/80 p-4 text-xs leading-6 text-muted-foreground">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{t('documentTemplates.placeholdersLoopTitle')}</p>
+                      <pre className="overflow-x-auto rounded-2xl border border-border/70 bg-background/80 p-4 text-xs leading-6 text-muted-foreground">
 {`{{#team_assignments}}
 - {{.team_name}} ({{.start_date}} - {{.end_date}})
 {{/team_assignments}}`}
-                  </pre>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t('documentTemplates.placeholdersHintsTitle')}</p>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <p>{t('documentTemplates.placeholdersHintRoot')}</p>
-                    <p>{t('documentTemplates.placeholdersHintLoop')}</p>
-                    <p>{t('documentTemplates.placeholdersHintFallback')}</p>
+                      </pre>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{t('documentTemplates.placeholdersHintsTitle')}</p>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p>{t('documentTemplates.placeholdersHintRoot')}</p>
+                        <p>{t('documentTemplates.placeholdersHintLoop')}</p>
+                        <p>{t('documentTemplates.placeholdersHintConfiguredValues')}</p>
+                        <p>{t('documentTemplates.placeholdersHintFallback')}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </CardContent>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
           {templatesQuery.isPending ? (

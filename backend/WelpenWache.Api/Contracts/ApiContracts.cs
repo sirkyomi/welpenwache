@@ -144,6 +144,10 @@ public sealed record DocumentTemplateResponse(
     bool IsActive,
     DateTime UploadedUtc);
 
+public sealed record CompletionDocumentPlaceholderConfigurationResponse(
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Genders,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Salutations);
+
 public sealed record CalendarDayEntryResponse(
     Guid InternId,
     string InternName,

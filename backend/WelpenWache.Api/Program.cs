@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using WelpenWache.Api.Contracts;
 using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
@@ -746,6 +747,21 @@ documentTemplatesGroup.MapGet("/", async (
     return Results.Ok(templates.Select(item => item.ToResponse()));
 });
 
+documentTemplatesGroup.MapGet("/completion-placeholders", (
+    ClaimsPrincipal principal,
+    IOptions<CompletionDocumentOptions> completionDocumentOptions) =>
+{
+    if (!CanAccessDocuments(principal))
+    {
+        return Results.Forbid();
+    }
+
+    var options = completionDocumentOptions.Value;
+    return Results.Ok(new CompletionDocumentPlaceholderConfigurationResponse(
+        ToConfiguredValueMap(options.Genders),
+        ToConfiguredValueMap(options.Salutations)));
+});
+
 documentTemplatesGroup.MapPost("/", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
     [FromForm] DocumentTemplateUpsertForm form,
     ApplicationDbContext dbContext,
@@ -1250,6 +1266,16 @@ static ApiError? ValidateDocumentTemplateForm(DocumentTemplateUpsertForm form, b
 
     return null;
 }
+
+static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ToConfiguredValueMap(
+    IReadOnlyDictionary<string, Dictionary<string, string>> source) =>
+    source.ToDictionary(
+        item => item.Key,
+        item => (IReadOnlyDictionary<string, string>)item.Value.ToDictionary(
+            language => language.Key,
+            language => language.Value ?? string.Empty,
+            StringComparer.OrdinalIgnoreCase),
+        StringComparer.OrdinalIgnoreCase);
 
 static void SyncSupervisors(
     ApplicationDbContext dbContext,
