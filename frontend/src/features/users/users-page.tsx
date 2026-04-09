@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, SquarePen } from 'lucide-react'
+import { Plus, SquarePen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -37,12 +38,15 @@ const emptyForm: UserFormState = {
   permissions: ['interns.view'],
 }
 
+type DeleteRestriction = 'self' | 'lastActiveAdmin'
+
 export function UsersPage() {
-  const { token } = useAuth()
+  const { token, user: currentUser } = useAuth()
   const { t } = useLanguage()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null)
+  const [userPendingDelete, setUserPendingDelete] = useState<AuthUser | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm)
 
   const permissionOptions: Array<{ value: Permission; label: string }> = [
@@ -99,6 +103,31 @@ export function UsersPage() {
   })
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data])
+  const activeAdministratorCount = useMemo(
+    () => users.filter((user) => user.isAdministrator && user.isActive).length,
+    [users],
+  )
+
+  const deleteMutation = useMutation({
+    mutationFn: async (user: AuthUser) => {
+      if (!token) {
+        return
+      }
+
+      await api.deleteUser(token, user.id)
+    },
+    onSuccess: async (_, deletedUser) => {
+      queryClient.setQueryData<AuthUser[]>(['users'], (currentUsers) =>
+        (currentUsers ?? []).filter((user) => user.id !== deletedUser.id),
+      )
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+      setUserPendingDelete(null)
+      toast.success(t('users.deleted'))
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('users.deleteFailed'))
+    },
+  })
 
   const openCreate = () => {
     setEditingUser(null)
@@ -127,8 +156,71 @@ export function UsersPage() {
     }))
   }
 
+  const getDeleteRestriction = (user: AuthUser): DeleteRestriction | null => {
+    if (currentUser?.id === user.id) {
+      return 'self'
+    }
+
+    if (user.isAdministrator && user.isActive && activeAdministratorCount <= 1) {
+      return 'lastActiveAdmin'
+    }
+
+    return null
+  }
+
+  const getDeleteRestrictionMessage = (restriction: DeleteRestriction) => {
+    switch (restriction) {
+      case 'self':
+        return t('users.deleteDisabledSelf')
+      case 'lastActiveAdmin':
+        return t('users.deleteDisabledLastActiveAdmin')
+    }
+  }
+
+  const deleteUser = async (user: AuthUser) => {
+    await deleteMutation.mutateAsync(user)
+  }
+
   return (
     <section className="space-y-6">
+      <Dialog
+        open={Boolean(userPendingDelete)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !deleteMutation.isPending) {
+            setUserPendingDelete(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('users.deleteTitle')}</DialogTitle>
+            <DialogDescription>
+              {userPendingDelete
+                ? t('users.deleteDescription', { name: userPendingDelete.userName })
+                : t('users.deleteDescriptionFallback')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setUserPendingDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => userPendingDelete && void deleteUser(userPendingDelete)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? t('common.deleting') : t('common.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -219,36 +311,61 @@ export function UsersPage() {
           </Dialog>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
-          {users.map((user) => (
-            <Card key={user.id} className="border-border/70 bg-card/80">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>{user.userName}</CardTitle>
-                    <CardDescription>
-                      {t('users.accountStatus', {
-                        role: user.isAdministrator ? t('users.administrator') : t('users.roleUser'),
-                        status: user.isActive ? t('common.active') : t('common.inactive'),
-                      })}
-                    </CardDescription>
+          {users.map((user) => {
+            const deleteRestriction = getDeleteRestriction(user)
+
+            return (
+              <Card key={user.id} className="border-border/70 bg-card/80">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle>{user.userName}</CardTitle>
+                      <CardDescription>
+                        {t('users.accountStatus', {
+                          role: user.isAdministrator ? t('users.administrator') : t('users.roleUser'),
+                          status: user.isActive ? t('common.active') : t('common.inactive'),
+                        })}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEdit(user)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <SquarePen className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setUserPendingDelete(user)}
+                        disabled={deleteMutation.isPending || deleteRestriction !== null}
+                        title={deleteRestriction ? getDeleteRestrictionMessage(deleteRestriction) : undefined}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>
-                    <SquarePen className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {user.permissions.map((permission) => (
-                  <span
-                    key={permission}
-                    className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
-                  >
-                    {permissionLabels[permission] ?? permission}
-                  </span>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {user.permissions.map((permission) => (
+                    <span
+                      key={permission}
+                      className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+                    >
+                      {permissionLabels[permission] ?? permission}
+                    </span>
+                  ))}
+                  {deleteRestriction ? (
+                    <p className="basis-full text-xs text-muted-foreground">
+                      {getDeleteRestrictionMessage(deleteRestriction)}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )
+          })}
         </CardContent>
       </Card>
     </section>

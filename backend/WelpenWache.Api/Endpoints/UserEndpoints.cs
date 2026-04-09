@@ -146,6 +146,38 @@ public static class UserEndpoints
             return Results.Ok(user.ToResponse());
         });
 
+        group.MapDelete("/{id:guid}", async (
+            Guid id,
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext) =>
+        {
+            var user = await dbContext.Users
+                .SingleOrDefaultAsync(item => item.Id == id);
+
+            if (user is null)
+            {
+                return Results.NotFound(new ApiError("USER_NOT_FOUND", "Der Benutzer wurde nicht gefunden."));
+            }
+
+            if (principal.GetUserId() == id)
+            {
+                return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Der eigene Benutzer kann nicht geloescht werden."));
+            }
+
+            if (user.IsAdministrator && user.IsActive)
+            {
+                var anotherAdminExists = await dbContext.Users.AnyAsync(item => item.Id != id && item.IsAdministrator && item.IsActive);
+                if (!anotherAdminExists)
+                {
+                    return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Es muss mindestens ein aktiver Administrator vorhanden bleiben."));
+                }
+            }
+
+            dbContext.Users.Remove(user);
+            await dbContext.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         return endpoints;
     }
 }
