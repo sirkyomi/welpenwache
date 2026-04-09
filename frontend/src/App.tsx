@@ -32,8 +32,6 @@ function AppContent() {
       document.title = buildDocumentTitle(t('auth.loginTitle'))
       return
     }
-
-    document.title = buildDocumentTitle()
   }, [initializing, needsSetup, token, t])
 
   if (initializing) {
