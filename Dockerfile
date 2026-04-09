@@ -1,6 +1,6 @@
 FROM node:24-bookworm-slim AS frontend-build
 
-ARG APP_VERSION=0.1.0-local
+ARG APP_VERSION=0.3.0-local
 
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -11,7 +11,7 @@ RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
-ARG APP_VERSION=0.1.0-local
+ARG APP_VERSION=0.3.0-local
 
 WORKDIR /src
 COPY . .

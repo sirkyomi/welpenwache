@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CalendarDays, FileDown, GraduationCap, NotebookText, SquarePen, UsersRound } from 'lucide-react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -11,6 +12,7 @@ import {
   buildCalendarReturnTarget,
   readCalendarReturnTo,
 } from '@/features/calendar/calendar-navigation'
+import { InternFormDialog, type InternFormPayload } from '@/features/interns/intern-form-dialog'
 import { useLanguage } from '@/features/localization/language-provider'
 import { ApiError, api } from '@/lib/api'
 import { downloadBlob } from '@/lib/download'
@@ -21,6 +23,8 @@ export function InternDetailPage() {
   const { formatDateRange, t } = useLanguage()
   const { internId } = useParams<{ internId: string }>()
   const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
   const canManageIntern = hasPermission('interns.manage')
   const canRunCompletion = hasPermission('documents.view') || hasPermission('documents.manage')
   const calendarReturnTo = readCalendarReturnTo(searchParams) ?? buildCalendarReturnTarget('/', '')
@@ -29,6 +33,12 @@ export function InternDetailPage() {
     queryKey: ['intern', internId],
     queryFn: () => api.getIntern(token!, internId!),
     enabled: Boolean(token && internId),
+  })
+
+  const teamsQuery = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => api.getTeams(token!),
+    enabled: Boolean(token && editOpen),
   })
 
   const completionMutation = useMutation({
@@ -49,6 +59,26 @@ export function InternDetailPage() {
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : t('interns.completionFailed'))
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: InternFormPayload) => {
+      if (!token || !internId) {
+        return null
+      }
+
+      return api.updateIntern(token, internId, payload)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['interns'] })
+      await queryClient.invalidateQueries({ queryKey: ['intern', internId] })
+      await queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success(t('interns.updated'))
+      setEditOpen(false)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('interns.saveFailed'))
     },
   })
 
@@ -100,9 +130,20 @@ export function InternDetailPage() {
   }
 
   const intern = internQuery.data
+  const teams = teamsQuery.data ?? []
 
   return (
     <section className="space-y-6">
+      <InternFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        intern={intern}
+        teams={teams}
+        onSubmit={(payload) => saveMutation.mutateAsync(payload)}
+        isPending={saveMutation.isPending}
+        idPrefix="intern-detail-form"
+      />
+
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
           <Link to={calendarReturnTo}>
@@ -114,11 +155,9 @@ export function InternDetailPage() {
           <Link to="/praktikanten">{t('common.backToOverview')}</Link>
         </Button>
         {canManageIntern ? (
-          <Button asChild>
-            <Link to={`/praktikanten?edit=${intern.id}`}>
-              <SquarePen className="h-4 w-4" />
-              {t('common.edit')}
-            </Link>
+          <Button onClick={() => setEditOpen(true)}>
+            <SquarePen className="h-4 w-4" />
+            {t('common.edit')}
           </Button>
         ) : null}
         {canRunCompletion ? (

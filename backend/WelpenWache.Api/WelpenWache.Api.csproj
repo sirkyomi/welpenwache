@@ -9,7 +9,7 @@
     <FrontendDistDir>$(FrontendProjectDir)\dist</FrontendDistDir>
     <BundledAppVersion Condition="'$(NBGV_SemVer2)' != ''">$(NBGV_SemVer2)</BundledAppVersion>
     <BundledAppVersion Condition="'$(BundledAppVersion)' == '' and '$(Version)' != ''">$(Version)</BundledAppVersion>
-    <BundledAppVersion Condition="'$(BundledAppVersion)' == ''">0.1.0-local</BundledAppVersion>
+    <BundledAppVersion Condition="'$(BundledAppVersion)' == ''">0.3.0-local</BundledAppVersion>
     <SkipBundledFrontendBuild Condition="'$(SkipBundledFrontendBuild)' == ''">false</SkipBundledFrontendBuild>
   </PropertyGroup>
 

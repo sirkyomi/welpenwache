@@ -90,7 +90,7 @@ export function VersionSummary() {
           className="h-11 w-11 shrink-0 rounded-2xl border border-border/70 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground"
           aria-label={permissionsOpen ? 'Berechtigungen einklappen' : 'Berechtigungen ausklappen'}
         >
-          {permissionsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {permissionsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
         </Button>
       </div>
       <div
