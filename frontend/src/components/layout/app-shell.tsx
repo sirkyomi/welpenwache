@@ -1,5 +1,6 @@
 import { CalendarDays, FileCog, Github, Languages, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ import { TeamsPage } from '@/features/teams/teams-page'
 import { UsersPage } from '@/features/users/users-page'
 import { SidebarVersion, VersionSummary } from '@/features/version/version-summary'
 import type { LanguagePreference } from '@/lib/types'
+import { buildDocumentTitle } from '@/lib/document-title'
 import { cn } from '@/lib/utils'
 
 function RestrictedRoute({
@@ -42,6 +44,7 @@ export function AppShell() {
   const { hasPermission, user } = useAuth()
   const { languagePreference, setLanguagePreference, t } = useLanguage()
   const { resolvedTheme, setThemePreference, themePreference } = useTheme()
+  const location = useLocation()
   const canViewCalendar = hasPermission('interns.view') || hasPermission('interns.manage')
   const canViewInterns =
     canViewCalendar || hasPermission('documents.view') || hasPermission('documents.manage')
@@ -77,6 +80,34 @@ export function AppShell() {
     { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: canViewDocumentTemplates },
     { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: canManageUsers },
   ].filter((item) => item.visible)
+
+  useEffect(() => {
+    const routeTitle = (() => {
+      if (location.pathname === '/') {
+        return t('navigation.calendar')
+      }
+
+      if (location.pathname.startsWith('/praktikanten')) {
+        return t('navigation.interns')
+      }
+
+      if (location.pathname.startsWith('/teams')) {
+        return t('navigation.teams')
+      }
+
+      if (location.pathname.startsWith('/dokumentvorlagen')) {
+        return t('navigation.documentTemplates')
+      }
+
+      if (location.pathname.startsWith('/benutzer')) {
+        return t('navigation.users')
+      }
+
+      return undefined
+    })()
+
+    document.title = buildDocumentTitle(routeTitle)
+  }, [location.pathname, t])
 
   return (
     <div className="min-h-screen">

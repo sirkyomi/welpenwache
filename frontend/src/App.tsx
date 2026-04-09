@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -8,12 +9,32 @@ import { AuthProvider, useAuth } from '@/features/auth/auth-provider'
 import { LanguageProvider, useLanguage } from '@/features/localization/language-provider'
 import { ThemeProvider } from '@/features/theme/theme-provider'
 import { routerBaseName } from '@/lib/base-path'
+import { buildDocumentTitle } from '@/lib/document-title'
 
 const queryClient = new QueryClient()
 
 function AppContent() {
   const { initializing, needsSetup, token } = useAuth()
   const { t } = useLanguage()
+
+  useEffect(() => {
+    if (initializing) {
+      document.title = buildDocumentTitle(t('app.loading'))
+      return
+    }
+
+    if (needsSetup && !token) {
+      document.title = buildDocumentTitle(t('auth.setupTitle'))
+      return
+    }
+
+    if (!token) {
+      document.title = buildDocumentTitle(t('auth.loginTitle'))
+      return
+    }
+
+    document.title = buildDocumentTitle()
+  }, [initializing, needsSetup, token, t])
 
   if (initializing) {
     return (

@@ -1,9 +1,14 @@
 # WelpenWache
-
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo-dark-squircle.svg">
+    <source media="(prefers-color-scheme: light)" srcset="frontend/public/logo-light-squircle.svg">
+    <img src="frontend/public/logo-light-squircle.svg" width="120" alt="WelpenWache Logo">
+  </picture>
+</p>
 WelpenWache is an internal web application for managing interns, teams, supervisors, role-based access, document templates, and completion document downloads.
 
 ## App Screenshot
-
 ![WelpenWache screenshot](docs/images/app.png)
 
 ## Features
