@@ -1,4 +1,5 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   addDays,
   addMonths,
@@ -33,6 +34,25 @@ interface CalendarRangeSelection {
   currentDate: string
 }
 
+interface TimelineRow {
+  internId: string
+  internName: string
+  assignmentsByDate: Map<string, CalendarDayEntry>
+}
+
+interface TimelineSegment {
+  assignment: CalendarDayEntry
+  startIndex: number
+  length: number
+}
+
+interface TimelineTooltipState {
+  teamName: string
+  supervisorName: string | null
+  left: number
+  top: number
+}
+
 function buildCalendarGrid(currentMonth: Date) {
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -53,11 +73,68 @@ function normalizeRange(selection: CalendarRangeSelection) {
     : { startDate: selection.currentDate, endDate: selection.anchorDate }
 }
 
+function buildMonthDays(currentMonth: Date) {
+  const monthStart = startOfMonth(currentMonth)
+  const monthEnd = endOfMonth(currentMonth)
+  const days: Date[] = []
+
+  for (let cursor = monthStart; cursor <= monthEnd; cursor = addDays(cursor, 1)) {
+    days.push(cursor)
+  }
+
+  return days
+}
+
+function buildTimelineSegments(monthDays: Date[], assignmentsByDate: Map<string, CalendarDayEntry>) {
+  const segments: TimelineSegment[] = []
+  let activeSegment: TimelineSegment | null = null
+
+  for (const [index, date] of monthDays.entries()) {
+    const isoDate = format(date, 'yyyy-MM-dd')
+    const assignment = assignmentsByDate.get(isoDate)
+
+    if (!assignment) {
+      if (activeSegment) {
+        segments.push(activeSegment)
+        activeSegment = null
+      }
+
+      continue
+    }
+
+    if (
+      activeSegment &&
+      activeSegment.assignment.teamId === assignment.teamId &&
+      activeSegment.assignment.supervisorId === assignment.supervisorId
+    ) {
+      activeSegment.length += 1
+      continue
+    }
+
+    if (activeSegment) {
+      segments.push(activeSegment)
+    }
+
+    activeSegment = {
+      assignment,
+      startIndex: index,
+      length: 1,
+    }
+  }
+
+  if (activeSegment) {
+    segments.push(activeSegment)
+  }
+
+  return segments
+}
+
 export function CalendarPage() {
   const { hasPermission, token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
   const { resolvedTheme } = useTheme()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [timelineTooltip, setTimelineTooltip] = useState<TimelineTooltipState | null>(null)
   const [hoveredCreateDate, setHoveredCreateDate] = useState<string | null>(null)
   const [rangeSelection, setRangeSelection] = useState<CalendarRangeSelection | null>(null)
   const [pendingCreateRange, setPendingCreateRange] = useState<{ startDate: string; endDate?: string } | null>(null)
@@ -66,6 +143,7 @@ export function CalendarPage() {
   const selectionMovedRef = useRef(false)
   const currentMonth = parseCalendarMonth(searchParams.get('month')) ?? startOfMonth(new Date())
   const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
+  const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth])
   const canManageInterns = hasPermission('interns.manage')
   const calendarReturnTo = `/?month=${formatCalendarMonth(currentMonth)}`
   const todayMonth = startOfMonth(new Date())
@@ -113,6 +191,43 @@ export function CalendarPage() {
     return days
   }, [calendarQueries])
 
+  const timelineRows = useMemo(() => {
+    const rows = new Map<string, TimelineRow>()
+
+    for (const date of monthDays) {
+      const isoDate = format(date, 'yyyy-MM-dd')
+      const entries = dayLookup.get(isoDate) ?? []
+
+      for (const entry of entries) {
+        const existingRow = rows.get(entry.internId)
+
+        if (existingRow) {
+          existingRow.assignmentsByDate.set(isoDate, entry)
+          continue
+        }
+
+        rows.set(entry.internId, {
+          internId: entry.internId,
+          internName: entry.internName,
+          assignmentsByDate: new Map([[isoDate, entry]]),
+        })
+      }
+    }
+
+    return [...rows.values()].sort((left, right) =>
+      left.internName.localeCompare(right.internName, languagePreference === 'de' ? 'de' : 'en'),
+    )
+  }, [dayLookup, languagePreference, monthDays])
+
+  const timelineRowsWithSegments = useMemo(
+    () =>
+      timelineRows.map((row) => ({
+        ...row,
+        segments: buildTimelineSegments(monthDays, row.assignmentsByDate),
+      })),
+    [monthDays, timelineRows],
+  )
+
   const activeRange = useMemo(() => (rangeSelection ? normalizeRange(rangeSelection) : null), [rangeSelection])
 
   const finishRangeSelection = useEffectEvent(() => {
@@ -159,10 +274,28 @@ export function CalendarPage() {
     }
   }, [finishRangeSelection, rangeSelection])
 
+  useEffect(() => {
+    if (!timelineTooltip) {
+      return
+    }
+
+    const handleViewportChange = () => {
+      setTimelineTooltip(null)
+    }
+
+    window.addEventListener('scroll', handleViewportChange, true)
+    window.addEventListener('resize', handleViewportChange)
+
+    return () => {
+      window.removeEventListener('scroll', handleViewportChange, true)
+      window.removeEventListener('resize', handleViewportChange)
+    }
+  }, [timelineTooltip])
+
   return (
     <>
       <section className="space-y-6">
-        <Card>
+        <Card className="relative z-20 overflow-visible">
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>{t('calendar.title')}</CardTitle>
@@ -353,6 +486,146 @@ export function CalendarPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle>{t('calendar.timelineTitle')}</CardTitle>
+              <CardDescription>{t('calendar.timelineDescription')}</CardDescription>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {t('calendar.timelineInternCount', { count: timelineRowsWithSegments.length })}
+            </div>
+          </CardHeader>
+          <CardContent className="overflow-visible">
+            {timelineRowsWithSegments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/80 bg-muted/25 px-4 py-6 text-sm text-muted-foreground">
+                {t('calendar.timelineEmpty')}
+              </div>
+            ) : (
+              <div className="overflow-x-auto pb-2">
+                <div className="min-w-max overflow-hidden rounded-2xl border border-border/70 bg-background/70 shadow-sm">
+                  <div
+                    className="grid"
+                    style={{
+                      gridTemplateColumns: `minmax(13rem, 16rem) repeat(${monthDays.length}, minmax(2.5rem, 1fr))`,
+                    }}
+                  >
+                    <div className="sticky left-0 z-30 flex items-end border-b border-r border-border/70 bg-background/95 px-4 py-3 text-sm font-semibold text-foreground backdrop-blur">
+                      {t('navigation.interns')}
+                    </div>
+                    {monthDays.map((date) => {
+                      const isoDate = format(date, 'yyyy-MM-dd')
+                      const isCurrentDate = isToday(date)
+                      const isWeekend = isSaturday(date) || isSunday(date)
+
+                      return (
+                        <div
+                          key={`timeline-header-${isoDate}`}
+                          className={cn(
+                            'border-b border-r border-border/50 px-1 py-2 text-center text-xs',
+                            isWeekend && 'bg-muted/30',
+                            isCurrentDate && 'bg-primary/10 text-primary',
+                          )}
+                        >
+                          <div className="font-semibold">{format(date, 'd')}</div>
+                          <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {formatWeekday(date).slice(0, 2)}
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {timelineRowsWithSegments.map((row) => (
+                      <Fragment key={`timeline-row-${row.internId}`}>
+                        <div
+                          key={`timeline-name-${row.internId}`}
+                          className="sticky left-0 z-20 flex items-center border-b border-r border-border/70 bg-background/95 px-4 py-3 text-sm font-medium text-foreground backdrop-blur"
+                        >
+                          <span className="truncate">{row.internName}</span>
+                        </div>
+                        {monthDays.map((date) => {
+                          const isoDate = format(date, 'yyyy-MM-dd')
+                          const isCurrentDate = isToday(date)
+                          const isWeekend = isSaturday(date) || isSunday(date)
+
+                          return (
+                            <div
+                              key={`timeline-cell-${row.internId}-${isoDate}`}
+                              className={cn(
+                                'relative border-b border-r border-border/50 p-0',
+                                isWeekend && 'bg-muted/20',
+                                isCurrentDate && 'bg-primary/5',
+                              )}
+                            />
+                          )
+                        })}
+                        <div
+                          className="pointer-events-none col-start-2 row-auto mx-1 -mt-10 mb-1 grid h-9"
+                          style={{
+                            gridColumn: `2 / span ${monthDays.length}`,
+                            gridTemplateColumns: `repeat(${monthDays.length}, minmax(2.5rem, 1fr))`,
+                          }}
+                        >
+                          {row.segments.map((segment) => (
+                            <button
+                              key={`${row.internId}-${segment.startIndex}-${segment.length}-${segment.assignment.teamId}`}
+                              type="button"
+                              className="group pointer-events-auto relative mx-2 h-9 rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                              style={{
+                                gridColumn: `${segment.startIndex + 1} / span ${segment.length}`,
+                                backgroundColor: `${segment.assignment.teamColorHex}24`,
+                                borderColor: `${segment.assignment.teamColorHex}cc`,
+                              }}
+                              aria-label={`${row.internName} - ${segment.assignment.teamName}`}
+                              onMouseEnter={(event) => {
+                                const rect = event.currentTarget.getBoundingClientRect()
+                                const tooltipWidth = 256
+                                const margin = 16
+                                const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+                                const left = Math.min(
+                                  Math.max(centeredLeft, margin),
+                                  window.innerWidth - tooltipWidth - margin,
+                                )
+
+                                setTimelineTooltip({
+                                  teamName: segment.assignment.teamName,
+                                  supervisorName: segment.assignment.supervisorName,
+                                  left,
+                                  top: rect.top - 12,
+                                })
+                              }}
+                              onMouseLeave={() => setTimelineTooltip(null)}
+                              onFocus={(event) => {
+                                const rect = event.currentTarget.getBoundingClientRect()
+                                const tooltipWidth = 256
+                                const margin = 16
+                                const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+                                const left = Math.min(
+                                  Math.max(centeredLeft, margin),
+                                  window.innerWidth - tooltipWidth - margin,
+                                )
+
+                                setTimelineTooltip({
+                                  teamName: segment.assignment.teamName,
+                                  supervisorName: segment.assignment.supervisorName,
+                                  left,
+                                  top: rect.top - 12,
+                                })
+                              }}
+                              onBlur={() => setTimelineTooltip(null)}
+                            >
+                            </button>
+                          ))}
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       <CalendarCreateInternDialog
@@ -365,6 +638,27 @@ export function CalendarPage() {
         }}
         initialRange={pendingCreateRange}
       />
+      {timelineTooltip
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed z-[120] w-64 -translate-y-full rounded-xl border border-border/80 bg-popover/95 p-3 text-left text-popover-foreground shadow-md backdrop-blur"
+              style={{
+                left: timelineTooltip.left,
+                top: timelineTooltip.top,
+              }}
+            >
+              <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Team</div>
+              <div className="text-sm font-semibold text-foreground">{timelineTooltip.teamName}</div>
+              <div className="pt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {t('interns.supervisor')}
+              </div>
+              <div className="text-sm text-foreground">
+                {timelineTooltip.supervisorName ?? t('interns.supervisorMissing')}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   )
 }
