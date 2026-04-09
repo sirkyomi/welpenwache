@@ -110,8 +110,8 @@ export function AppShell() {
   }, [location.pathname, t])
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border/70 bg-card/70 backdrop-blur">
+    <div className="flex h-screen flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/70 bg-card/70 backdrop-blur">
         <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-sm font-black uppercase tracking-[0.24em] text-primary">WelpenWache</p>
@@ -181,9 +181,9 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="grid w-full items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:px-8">
-        <aside className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card/70 px-3 py-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100dvh-8rem)]">
-          <nav className="flex gap-2 overflow-x-auto lg:flex-1 lg:flex-col">
+      <div className="grid min-h-0 flex-1 w-full gap-6 overflow-hidden px-4 py-6 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:px-8">
+        <aside className="flex flex-col gap-4 rounded-xl border border-border/80 bg-card/70 px-3 py-4 shadow-sm lg:h-full lg:max-h-full">
+          <nav className="flex gap-2 overflow-x-auto lg:flex-1 lg:flex-col lg:overflow-x-visible">
             {navigation.map((item) => (
               <NavLink
                 key={item.to}
@@ -207,7 +207,7 @@ export function AppShell() {
           </div>
         </aside>
 
-        <main className="min-w-0">
+        <main className="min-w-0 min-h-0 overflow-y-auto pr-1">
           <Routes>
             <Route
               path="/"

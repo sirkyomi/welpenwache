@@ -81,6 +81,10 @@ const translations = {
       title: 'Monatsübersicht',
       description: 'Hier siehst du für jeden Tag, welcher Praktikant welchem Team zugeordnet ist.',
       noAssignments: 'Keine Zuweisungen',
+      timelineTitle: 'Timeline',
+      timelineDescription: 'Die Timeline zeigt für den ausgewählten Monat kompakt, wann welcher Praktikant in welchem Team eingeplant ist.',
+      timelineInternCount: '{count} Praktikanten',
+      timelineEmpty: 'Für diesen Monat gibt es keine geplanten Einsätze in der Timeline.',
     },
     interns: {
       loading: 'Praktikant wird geladen ...',
@@ -406,6 +410,10 @@ const translations = {
       title: 'Monthly overview',
       description: 'See which intern is assigned to which team on each day.',
       noAssignments: 'No assignments',
+      timelineTitle: 'Timeline',
+      timelineDescription: 'The timeline gives a compact view of which intern is assigned to which team during the selected month.',
+      timelineInternCount: '{count} interns',
+      timelineEmpty: 'There are no planned assignments for this month in the timeline.',
     },
     interns: {
       loading: 'Loading intern ...',
