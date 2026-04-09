@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Issue Kickoff"
+  short_description: "Kick off GitHub issue work in full-stack repos"
+  default_prompt: "Use $github-issue-kickoff to start work on GitHub issue #123 with branch setup and backend/frontend delegation."
