@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, BadgeInfo, CalendarDays, Palette, SquarePen, UserRound, UsersRound } from 'lucide-react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import {
   readCalendarReturnTo,
 } from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
+import { TeamFormDialog, type TeamFormPayload } from '@/features/teams/team-form-dialog'
 import { ApiError, api } from '@/lib/api'
 
 export function TeamDetailPage() {
@@ -19,12 +21,33 @@ export function TeamDetailPage() {
   const { formatDateRange, t } = useLanguage()
   const { teamId } = useParams<{ teamId: string }>()
   const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
   const calendarReturnTo = readCalendarReturnTo(searchParams) ?? buildCalendarReturnTarget('/', '')
 
   const teamQuery = useQuery({
     queryKey: ['team', teamId],
     queryFn: () => api.getTeam(token!, teamId!),
     enabled: Boolean(token && teamId),
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: TeamFormPayload) => {
+      if (!token || !teamId) {
+        return null
+      }
+
+      return api.updateTeam(token, teamId, payload)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['teams'] })
+      await queryClient.invalidateQueries({ queryKey: ['team', teamId] })
+      toast.success(t('teams.updated'))
+      setEditOpen(false)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('teams.saveFailed'))
+    },
   })
 
   const uniqueInternCount = useMemo(() => {
@@ -72,6 +95,15 @@ export function TeamDetailPage() {
 
   return (
     <section className="space-y-6">
+      <TeamFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        team={team}
+        onSubmit={(payload) => saveMutation.mutateAsync(payload)}
+        isPending={saveMutation.isPending}
+        idPrefix="team-detail-form"
+      />
+
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
           <Link to={calendarReturnTo}>
@@ -83,11 +115,9 @@ export function TeamDetailPage() {
           <Link to="/teams">{t('common.backToOverview')}</Link>
         </Button>
         {hasPermission('teams.manage') ? (
-          <Button asChild>
-            <Link to={`/teams?edit=${team.id}`}>
-              <SquarePen className="h-4 w-4" />
-              {t('common.edit')}
-            </Link>
+          <Button onClick={() => setEditOpen(true)}>
+            <SquarePen className="h-4 w-4" />
+            {t('common.edit')}
           </Button>
         ) : null}
       </div>

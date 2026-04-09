@@ -222,15 +222,15 @@ internal static class ApiValidation
                 return new ApiError("VALIDATION_ERROR", "Praktikumszeitraeume duerfen sich nicht ueberschneiden.");
             }
 
-            if (internship.Assignments.Count == 0)
-            {
-                return new ApiError("VALIDATION_ERROR", "Jeder Praktikumszeitraum muss mindestens eine Teamzuweisung enthalten.");
-            }
-
             var assignments = internship.Assignments.OrderBy(assignment => assignment.StartDate).ToList();
-            if (assignments[0].StartDate != internship.StartDate || assignments[^1].EndDate != internship.EndDate)
+            if (assignments.Count == 0)
             {
-                return new ApiError("VALIDATION_ERROR", "Die Teamzuweisungen muessen den gesamten Praktikumszeitraum lueckenlos abdecken.");
+                if (ContainsWeekday(internship.StartDate, internship.EndDate))
+                {
+                    return new ApiError("VALIDATION_ERROR", "Alle Werktage im Praktikumszeitraum muessen durch Teamzuweisungen abgedeckt sein.");
+                }
+
+                continue;
             }
 
             for (var assignmentIndex = 0; assignmentIndex < assignments.Count; assignmentIndex++)
@@ -260,15 +260,55 @@ internal static class ApiValidation
                 if (assignmentIndex > 0)
                 {
                     var previous = assignments[assignmentIndex - 1];
-                    if (previous.EndDate.AddDays(1) != assignment.StartDate)
+                    if (previous.EndDate >= assignment.StartDate)
                     {
-                        return new ApiError("VALIDATION_ERROR", "Die Teamzuweisungen muessen den Praktikumszeitraum ohne Luecken oder Ueberschneidungen abdecken.");
+                        return new ApiError("VALIDATION_ERROR", "Die Teamzuweisungen duerfen sich nicht ueberschneiden.");
                     }
                 }
+            }
+
+            if (!WeekdaysAreFullyCovered(internship.StartDate, internship.EndDate, assignments))
+            {
+                return new ApiError("VALIDATION_ERROR", "Alle Werktage im Praktikumszeitraum muessen durch Teamzuweisungen abgedeckt sein.");
             }
         }
 
         return null;
+    }
+
+    private static bool WeekdaysAreFullyCovered(DateOnly startDate, DateOnly endDate, IReadOnlyList<AssignmentRequest> assignments)
+    {
+        var cursor = startDate;
+
+        foreach (var assignment in assignments)
+        {
+            if (ContainsWeekday(cursor, assignment.StartDate.AddDays(-1)))
+            {
+                return false;
+            }
+
+            cursor = assignment.EndDate.AddDays(1);
+        }
+
+        return !ContainsWeekday(cursor, endDate);
+    }
+
+    private static bool ContainsWeekday(DateOnly startDate, DateOnly endDate)
+    {
+        if (startDate > endDate)
+        {
+            return false;
+        }
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            if (date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static string NormalizeKey(string value) => value.Trim().ToUpperInvariant();
