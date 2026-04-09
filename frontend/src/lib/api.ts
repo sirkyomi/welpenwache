@@ -219,6 +219,8 @@ export const api = {
       permissions: Permission[]
     },
   ) => request<AuthUser>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+  deleteUser: (token: string, id: string) =>
+    request<void>(`/api/users/${id}`, { method: 'DELETE' }, token),
   getDocumentTemplates: (token: string) =>
     request<DocumentTemplate[]>('/api/document-templates', undefined, token),
   createDocumentTemplate: (
