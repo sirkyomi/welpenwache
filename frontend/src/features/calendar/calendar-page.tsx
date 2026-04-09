@@ -23,6 +23,7 @@ import { useAuth } from '@/features/auth/auth-provider'
 import { CalendarCreateInternDialog } from '@/features/calendar/calendar-create-intern-dialog'
 import { appendReturnTo, formatCalendarMonth, parseCalendarMonth } from '@/features/calendar/calendar-navigation'
 import { useLanguage } from '@/features/localization/language-provider'
+import { useTheme } from '@/features/theme/theme-provider'
 import { api } from '@/lib/api'
 import type { CalendarDayEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -55,6 +56,7 @@ function normalizeRange(selection: CalendarRangeSelection) {
 export function CalendarPage() {
   const { hasPermission, token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
+  const { resolvedTheme } = useTheme()
   const [searchParams, setSearchParams] = useSearchParams()
   const [hoveredCreateDate, setHoveredCreateDate] = useState<string | null>(null)
   const [rangeSelection, setRangeSelection] = useState<CalendarRangeSelection | null>(null)
@@ -66,6 +68,8 @@ export function CalendarPage() {
   const gridDays = useMemo(() => buildCalendarGrid(currentMonth), [currentMonth])
   const canManageInterns = hasPermission('interns.manage')
   const calendarReturnTo = `/?month=${formatCalendarMonth(currentMonth)}`
+  const todayMonth = startOfMonth(new Date())
+  const isDisplayingTodayMonth = isSameMonth(currentMonth, todayMonth)
 
   const setDisplayedMonth = (month: Date) => {
     const nextSearchParams = new URLSearchParams(searchParams)
@@ -165,6 +169,14 @@ export function CalendarPage() {
               <CardDescription>{t('calendar.description')}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDisplayedMonth(todayMonth)}
+                disabled={isDisplayingTodayMonth}
+              >
+                {languagePreference === 'en' ? 'Today' : 'Heute'}
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setDisplayedMonth(subMonths(currentMonth, 1))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -283,7 +295,10 @@ export function CalendarPage() {
                           )}
                         />
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <Plus className={cn('h-4 w-4', isRangeSelected ? 'opacity-0' : 'text-[#f8ead7]')} />
+                          <Plus
+                            className={cn('h-4 w-4', isRangeSelected ? 'opacity-0' : undefined)}
+                            style={{ color: resolvedTheme === 'dark' ? '#f8ead7' : '#7a3f12' }}
+                          />
                         </div>
                       </div>
                     ) : null}
