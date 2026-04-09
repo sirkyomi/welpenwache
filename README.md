@@ -25,6 +25,22 @@ WelpenWache is an internal web application for managing interns, teams, supervis
 - `docker-compose.yml` - local SQL Server for development
 - `Dockerfile` - production image with bundled frontend and backend
 - `.github/workflows/release.yml` - builds the IIS release zip and publishes the Docker image to GHCR
+- `.codex/agents` - repo-local agent profiles for recurring specialist work
+- `.codex/skills` - repo-local Codex skills that are versioned with the repository
+
+## Codex Workflow
+
+This repository includes a shared Codex skill for recurring GitHub issue kickoffs:
+
+- `.codex/skills/github-issue-kickoff`
+
+Example:
+
+```text
+Use $github-issue-kickoff to start work on issue #32 in @github.
+```
+
+The skill reads the GitHub issue first, checks local git state, syncs `master` or the repo default branch, creates a `codex/issue-<number>-<slug>` branch, and delegates backend and frontend work to the matching specialists.
 
 ## Developer Quick Start
 
