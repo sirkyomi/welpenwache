@@ -1,5 +1,6 @@
 namespace WelpenWache.Api.Contracts;
 
+
 public sealed record ApiError(string Code, string Message);
 
 public sealed record SetupStatusResponse(bool RequiresSetup);
