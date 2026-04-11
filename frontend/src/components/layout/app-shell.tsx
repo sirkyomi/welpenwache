@@ -1,4 +1,4 @@
-import { CalendarDays, FileCog, Github, Languages, MonitorCog, Moon, Shield, Sun, Users, UsersRound } from 'lucide-react'
+import { CalendarDays, FileCog, Github, Languages, MonitorCog, Moon, ScrollText, Shield, Sun, Users, UsersRound } from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/features/auth/auth-provider'
+import { AuditLogPage } from '@/features/audit-log/audit-log-page'
 import { CalendarPage } from '@/features/calendar/calendar-page'
 import { DocumentTemplatesPage } from '@/features/document-templates/document-templates-page'
 import { InternDetailPage } from '@/features/interns/intern-detail-page'
@@ -51,6 +52,7 @@ export function AppShell() {
   const canViewTeams = hasPermission('teams.view') || hasPermission('teams.manage')
   const canViewDocumentTemplates =
     hasPermission('documents.view') || hasPermission('documents.manage')
+  const canViewAuditLog = Boolean(user?.isAdministrator)
   const canManageUsers = Boolean(user?.isAdministrator)
   const fallbackRoute = canViewCalendar
     ? '/'
@@ -60,6 +62,8 @@ export function AppShell() {
         ? '/teams'
         : canViewDocumentTemplates
           ? '/dokumentvorlagen'
+          : canViewAuditLog
+            ? '/audit-log'
           : canManageUsers
             ? '/benutzer'
             : '/'
@@ -78,6 +82,7 @@ export function AppShell() {
     { to: '/praktikanten', label: t('navigation.interns'), icon: UsersRound, visible: canViewInterns },
     { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
     { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: canViewDocumentTemplates },
+    { to: '/audit-log', label: t('navigation.auditLog'), icon: ScrollText, visible: canViewAuditLog },
     { to: '/benutzer', label: t('navigation.users'), icon: Shield, visible: canManageUsers },
   ].filter((item) => item.visible)
 
@@ -97,6 +102,10 @@ export function AppShell() {
 
       if (location.pathname.startsWith('/dokumentvorlagen')) {
         return t('navigation.documentTemplates')
+      }
+
+      if (location.pathname.startsWith('/audit-log')) {
+        return t('navigation.auditLog')
       }
 
       if (location.pathname.startsWith('/benutzer')) {
@@ -244,6 +253,14 @@ export function AppShell() {
               element={
                 <RestrictedRoute allowed={canViewTeams} redirectTo={fallbackRoute}>
                   <TeamDetailPage />
+                </RestrictedRoute>
+              }
+            />
+            <Route
+              path="/audit-log"
+              element={
+                <RestrictedRoute allowed={canViewAuditLog} redirectTo={fallbackRoute}>
+                  <AuditLogPage />
                 </RestrictedRoute>
               }
             />

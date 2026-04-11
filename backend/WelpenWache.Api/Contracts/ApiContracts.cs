@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace WelpenWache.Api.Contracts;
 
 public sealed record ApiError(string Code, string Message);
@@ -166,3 +168,40 @@ public sealed record CalendarMonthResponse(
     int Year,
     int Month,
     IReadOnlyList<CalendarDayResponse> Days);
+
+public sealed record AuditLogListResponse(
+    IReadOnlyList<AuditLogListItemResponse> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
+public sealed record AuditLogListItemResponse(
+    Guid Id,
+    string EntityType,
+    Guid EntityId,
+    string EntityLabel,
+    string Action,
+    DateTime OccurredUtc,
+    Guid? ActorUserId,
+    string? ActorUserName,
+    int ChangeCount);
+
+public sealed record AuditLogChangeResponse(
+    string Path,
+    string ChangeType,
+    JsonNode? OldValue,
+    JsonNode? NewValue);
+
+public sealed record AuditLogDetailResponse(
+    Guid Id,
+    string EntityType,
+    Guid EntityId,
+    string EntityLabel,
+    string Action,
+    DateTime OccurredUtc,
+    Guid? ActorUserId,
+    string? ActorUserName,
+    int ChangeCount,
+    JsonNode? Before,
+    JsonNode? After,
+    IReadOnlyList<AuditLogChangeResponse> Changes);

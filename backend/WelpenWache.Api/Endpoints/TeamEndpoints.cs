@@ -5,6 +5,7 @@ using WelpenWache.Api.Contracts;
 using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
 using WelpenWache.Api.Infrastructure;
+using WelpenWache.Api.Services;
 
 namespace WelpenWache.Api.Endpoints;
 
@@ -57,7 +58,10 @@ public static class TeamEndpoints
 
         group.MapPost("/", [Authorize(Policy = PermissionCatalog.TeamsManage)] async (
             TeamRequest request,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             var validationError = await ApiValidation.ValidateTeamAsync(request, dbContext, null);
             if (validationError is not null)
@@ -83,16 +87,21 @@ public static class TeamEndpoints
             };
 
             dbContext.Teams.Add(team);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.WriteCreateAsync(dbContext, principal, "team", team.Id, cancellationToken);
             return Results.Created($"/api/teams/{team.Id}", team.ToResponse());
         });
 
         group.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.TeamsManage)] async (
             Guid id,
             TeamRequest request,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
-            var team = await dbContext.Teams.SingleOrDefaultAsync(item => item.Id == id);
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "team", id, cancellationToken);
+            var team = await dbContext.Teams.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
             if (team is null)
             {
                 return Results.NotFound(new ApiError("TEAM_NOT_FOUND", "Das Team wurde nicht gefunden."));
@@ -111,37 +120,49 @@ public static class TeamEndpoints
             team.IsArchived = request.IsArchived;
             var existingSupervisors = await dbContext.Supervisors
                 .Where(supervisor => supervisor.TeamId == id)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             ApiValidation.SyncSupervisors(dbContext, id, existingSupervisors, request.Supervisors ?? []);
 
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
 
             var updatedTeam = await dbContext.Teams
                 .Include(item => item.Supervisors)
-                .SingleAsync(item => item.Id == id);
+                .SingleAsync(item => item.Id == id, cancellationToken);
 
             return Results.Ok(updatedTeam.ToResponse());
         });
 
         group.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.TeamsManage)] async (
             Guid id,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
-            var team = await dbContext.Teams.SingleOrDefaultAsync(item => item.Id == id);
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "team", id, cancellationToken);
+            var team = await dbContext.Teams.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
             if (team is null)
             {
                 return Results.NotFound(new ApiError("TEAM_NOT_FOUND", "Das Team wurde nicht gefunden."));
             }
 
-            var hasAssignments = await dbContext.Assignments.AnyAsync(item => item.TeamId == id);
+            var hasAssignments = await dbContext.Assignments.AnyAsync(item => item.TeamId == id, cancellationToken);
             if (hasAssignments)
             {
                 return Results.BadRequest(new ApiError("TEAM_IN_USE", "Teams mit bestehenden Zuweisungen koennen nicht geloescht werden."));
             }
 
             dbContext.Teams.Remove(team);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteDeleteAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
             return Results.NoContent();
         });
 

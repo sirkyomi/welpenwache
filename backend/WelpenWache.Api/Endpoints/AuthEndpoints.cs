@@ -6,6 +6,7 @@ using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
 using WelpenWache.Api.Infrastructure;
 using WelpenWache.Api.Security;
+using WelpenWache.Api.Services;
 
 namespace WelpenWache.Api.Endpoints;
 
@@ -57,7 +58,9 @@ public static class AuthEndpoints
         group.MapPut("/theme", [Authorize] async (
             UpdateThemePreferenceRequest request,
             ClaimsPrincipal principal,
-            ApplicationDbContext dbContext) =>
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             if (!UserAccount.IsValidThemePreference(request.ThemePreference))
             {
@@ -65,9 +68,10 @@ public static class AuthEndpoints
             }
 
             var userId = principal.GetUserId();
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "user", userId, cancellationToken);
             var user = await dbContext.Users
                 .Include(item => item.Permissions)
-                .SingleOrDefaultAsync(item => item.Id == userId);
+                .SingleOrDefaultAsync(item => item.Id == userId, cancellationToken);
 
             if (user is null)
             {
@@ -75,7 +79,11 @@ public static class AuthEndpoints
             }
 
             user.ThemePreference = request.ThemePreference;
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
 
             return Results.Ok(user.ToResponse());
         });
@@ -83,7 +91,9 @@ public static class AuthEndpoints
         group.MapPut("/language", [Authorize] async (
             UpdateLanguagePreferenceRequest request,
             ClaimsPrincipal principal,
-            ApplicationDbContext dbContext) =>
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             if (!UserAccount.IsValidLanguagePreference(request.LanguagePreference))
             {
@@ -91,9 +101,10 @@ public static class AuthEndpoints
             }
 
             var userId = principal.GetUserId();
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "user", userId, cancellationToken);
             var user = await dbContext.Users
                 .Include(item => item.Permissions)
-                .SingleOrDefaultAsync(item => item.Id == userId);
+                .SingleOrDefaultAsync(item => item.Id == userId, cancellationToken);
 
             if (user is null)
             {
@@ -101,7 +112,11 @@ public static class AuthEndpoints
             }
 
             user.LanguagePreference = request.LanguagePreference;
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
 
             return Results.Ok(user.ToResponse());
         });

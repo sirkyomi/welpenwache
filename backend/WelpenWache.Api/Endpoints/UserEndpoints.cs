@@ -5,6 +5,7 @@ using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
 using WelpenWache.Api.Infrastructure;
 using WelpenWache.Api.Security;
+using WelpenWache.Api.Services;
 
 namespace WelpenWache.Api.Endpoints;
 
@@ -25,7 +26,12 @@ public static class UserEndpoints
             return Results.Ok(users.Select(item => item.ToResponse()));
         });
 
-        group.MapPost("/", async (CreateUserRequest request, ApplicationDbContext dbContext) =>
+        group.MapPost("/", async (
+            CreateUserRequest request,
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             var userName = request.UserName.Trim();
             var normalizedUserName = ApiValidation.NormalizeKey(userName);
@@ -41,7 +47,7 @@ public static class UserEndpoints
                 return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Benutzername und Passwort mit mindestens 8 Zeichen sind erforderlich."));
             }
 
-            if (await dbContext.Users.AnyAsync(item => item.NormalizedUserName == normalizedUserName))
+            if (await dbContext.Users.AnyAsync(item => item.NormalizedUserName == normalizedUserName, cancellationToken))
             {
                 return Results.Conflict(new ApiError("USERNAME_EXISTS", "Der Benutzername ist bereits vergeben."));
             }
@@ -65,7 +71,8 @@ public static class UserEndpoints
                 }));
 
             dbContext.Users.Add(user);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.WriteCreateAsync(dbContext, principal, "user", user.Id, cancellationToken);
 
             return Results.Created($"/api/users/{user.Id}", user.ToResponse());
         });
@@ -74,11 +81,14 @@ public static class UserEndpoints
             Guid id,
             UpdateUserRequest request,
             ClaimsPrincipal principal,
-            ApplicationDbContext dbContext) =>
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "user", id, cancellationToken);
             var user = await dbContext.Users
                 .Include(item => item.Permissions)
-                .SingleOrDefaultAsync(item => item.Id == id);
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
             if (user is null)
             {
@@ -104,7 +114,7 @@ public static class UserEndpoints
                 return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Ein neues Passwort muss mindestens 8 Zeichen lang sein."));
             }
 
-            if (await dbContext.Users.AnyAsync(item => item.Id != id && item.NormalizedUserName == normalizedUserName))
+            if (await dbContext.Users.AnyAsync(item => item.Id != id && item.NormalizedUserName == normalizedUserName, cancellationToken))
             {
                 return Results.Conflict(new ApiError("USERNAME_EXISTS", "Der Benutzername ist bereits vergeben."));
             }
@@ -116,7 +126,7 @@ public static class UserEndpoints
 
             if (user.IsAdministrator && !request.IsAdministrator)
             {
-                var anotherAdminExists = await dbContext.Users.AnyAsync(item => item.Id != id && item.IsAdministrator && item.IsActive);
+                var anotherAdminExists = await dbContext.Users.AnyAsync(item => item.Id != id && item.IsAdministrator && item.IsActive, cancellationToken);
                 if (!anotherAdminExists)
                 {
                     return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Es muss mindestens ein aktiver Administrator vorhanden bleiben."));
@@ -142,17 +152,24 @@ public static class UserEndpoints
                     Permission = permission
                 }));
 
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
             return Results.Ok(user.ToResponse());
         });
 
         group.MapDelete("/{id:guid}", async (
             Guid id,
             ClaimsPrincipal principal,
-            ApplicationDbContext dbContext) =>
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "user", id, cancellationToken);
             var user = await dbContext.Users
-                .SingleOrDefaultAsync(item => item.Id == id);
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
             if (user is null)
             {
@@ -166,7 +183,7 @@ public static class UserEndpoints
 
             if (user.IsAdministrator && user.IsActive)
             {
-                var anotherAdminExists = await dbContext.Users.AnyAsync(item => item.Id != id && item.IsAdministrator && item.IsActive);
+                var anotherAdminExists = await dbContext.Users.AnyAsync(item => item.Id != id && item.IsAdministrator && item.IsActive, cancellationToken);
                 if (!anotherAdminExists)
                 {
                     return Results.BadRequest(new ApiError("VALIDATION_ERROR", "Es muss mindestens ein aktiver Administrator vorhanden bleiben."));
@@ -174,7 +191,11 @@ public static class UserEndpoints
             }
 
             dbContext.Users.Remove(user);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteDeleteAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
             return Results.NoContent();
         });
 

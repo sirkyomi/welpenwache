@@ -7,6 +7,7 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapSystemEndpoints();
         endpoints.MapSetupEndpoints();
         endpoints.MapAuthEndpoints();
+        endpoints.MapAuditLogEndpoints();
         endpoints.MapUserEndpoints();
         endpoints.MapTeamEndpoints();
         endpoints.MapInternEndpoints();
