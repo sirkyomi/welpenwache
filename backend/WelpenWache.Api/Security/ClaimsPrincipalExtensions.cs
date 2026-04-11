@@ -17,4 +17,12 @@ public static class ClaimsPrincipalExtensions
             ? userId
             : Guid.Empty;
     }
+
+    public static string? GetUserName(this ClaimsPrincipal principal)
+    {
+        var userName = principal.FindFirstValue(ClaimTypes.Name);
+        return string.IsNullOrWhiteSpace(userName)
+            ? null
+            : userName;
+    }
 }

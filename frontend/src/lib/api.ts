@@ -1,4 +1,6 @@
 import type {
+  AuditLogDetail,
+  AuditLogEntry,
   ApplicationVersionResponse,
   ApiErrorPayload,
   AuthResponse,
@@ -198,6 +200,100 @@ export const api = {
   getCalendarMonth: (token: string, year: number, month: number) =>
     request<CalendarMonth>(`/api/calendar/month?year=${year}&month=${month}`, undefined, token),
   getUsers: (token: string) => request<AuthUser[]>('/api/users', undefined, token),
+  getAuditLogs: (
+    token: string,
+    filters?: {
+      entityType?: string
+      action?: string
+      user?: string
+      fromUtc?: string
+      toUtc?: string
+    },
+  ) => {
+    const searchParams = new URLSearchParams()
+
+    if (filters?.entityType) {
+      searchParams.set('entityType', filters.entityType)
+    }
+
+    if (filters?.action) {
+      searchParams.set('action', filters.action)
+    }
+
+    if (filters?.user) {
+      searchParams.set('user', filters.user)
+    }
+
+    if (filters?.fromUtc) {
+      searchParams.set('fromUtc', filters.fromUtc)
+    }
+
+    if (filters?.toUtc) {
+      searchParams.set('toUtc', filters.toUtc)
+    }
+
+    const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+    return request<{
+      items: Array<{
+        id: string
+        entityType: string
+        entityId: string
+        entityLabel: string
+        action: string
+        occurredUtc: string
+        actorUserId: string | null
+        actorUserName: string | null
+        changeCount: number
+      }>
+      totalCount: number
+      page: number
+      pageSize: number
+    }>(`/api/audit-logs${query}`, undefined, token).then((response) =>
+      response.items.map((item) => ({
+        id: item.id,
+        timestampUtc: item.occurredUtc,
+        userId: item.actorUserId,
+        userName: item.actorUserName,
+        action: item.action as AuditLogEntry['action'],
+        entityType: item.entityType as AuditLogEntry['entityType'],
+        entityId: item.entityId,
+        entityDisplayName: item.entityLabel,
+        changeCount: item.changeCount,
+        hasMetadata: true,
+      })),
+    )
+  },
+  getAuditLog: (token: string, id: string) =>
+    request<{
+      id: string
+      entityType: string
+      entityId: string
+      entityLabel: string
+      action: string
+      occurredUtc: string
+      actorUserId: string | null
+      actorUserName: string | null
+      changeCount: number
+      before: unknown
+      after: unknown
+      changes: unknown
+    }>(`/api/audit-logs/${id}`, undefined, token).then((item) => ({
+      id: item.id,
+      timestampUtc: item.occurredUtc,
+      userId: item.actorUserId,
+      userName: item.actorUserName,
+      action: item.action as AuditLogDetail['action'],
+      entityType: item.entityType as AuditLogDetail['entityType'],
+      entityId: item.entityId,
+      entityDisplayName: item.entityLabel,
+      changeCount: item.changeCount,
+      hasMetadata: true,
+      changes: item.changes,
+      metadata: {
+        before: item.before,
+        after: item.after,
+      },
+    })),
   createUser: (
     token: string,
     payload: {

@@ -26,7 +26,9 @@ public static class ServiceCollectionExtensions
         });
         services.Configure<DocumentStorageOptions>(configuration.GetSection("DocumentStorage"));
         services.Configure<CompletionDocumentOptions>(configuration.GetSection("CompletionDocuments"));
+        services.AddHttpContextAccessor();
         services.AddScoped<JwtTokenService>();
+        services.AddScoped<AuditLogService>();
         services.AddSingleton<TemplateStorageService>();
         services.AddSingleton<CompletionDocumentService>();
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

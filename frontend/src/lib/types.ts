@@ -5,6 +5,8 @@ export type Permission =
   | 'teams.manage'
   | 'documents.view'
   | 'documents.manage'
+export type AuditLogAction = 'create' | 'update' | 'delete' | (string & {})
+export type AuditEntityType = 'intern' | 'team' | 'user' | 'documentTemplate' | (string & {})
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type LanguagePreference = 'de' | 'en'
@@ -133,4 +135,22 @@ export interface ApiErrorPayload {
   code?: string
   message?: string
   title?: string
+}
+
+export interface AuditLogEntry {
+  id: string
+  timestampUtc: string
+  userId: string | null
+  userName: string | null
+  action: AuditLogAction
+  entityType: AuditEntityType
+  entityId: string
+  entityDisplayName: string | null
+  changeCount: number
+  hasMetadata: boolean
+}
+
+export interface AuditLogDetail extends AuditLogEntry {
+  changes: unknown
+  metadata: unknown
 }

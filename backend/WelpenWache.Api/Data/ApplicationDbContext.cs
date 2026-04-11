@@ -5,6 +5,8 @@ namespace WelpenWache.Api.Data;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     public DbSet<UserAccount> Users => Set<UserAccount>();
 
     public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
@@ -23,6 +25,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLogs");
+            entity.HasKey(auditLog => auditLog.Id);
+            entity.Property(auditLog => auditLog.EntityType).HasMaxLength(80).IsRequired();
+            entity.Property(auditLog => auditLog.EntityLabel).HasMaxLength(200).IsRequired();
+            entity.Property(auditLog => auditLog.Action).HasMaxLength(16).IsRequired();
+            entity.Property(auditLog => auditLog.ActorUserName).HasMaxLength(100);
+            entity.Property(auditLog => auditLog.BeforeJson).HasColumnType("nvarchar(max)");
+            entity.Property(auditLog => auditLog.AfterJson).HasColumnType("nvarchar(max)");
+            entity.Property(auditLog => auditLog.ChangesJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.HasIndex(auditLog => auditLog.OccurredUtc);
+            entity.HasIndex(auditLog => new { auditLog.EntityType, auditLog.EntityId, auditLog.OccurredUtc });
+            entity.HasIndex(auditLog => new { auditLog.ActorUserId, auditLog.OccurredUtc });
+        });
+
         modelBuilder.Entity<UserAccount>(entity =>
         {
             entity.ToTable("Users");

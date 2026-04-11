@@ -60,7 +60,10 @@ public static class InternEndpoints
 
         group.MapPost("/", [Authorize(Policy = PermissionCatalog.InternsManage)] async (
             InternRequest request,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             var validationError = await ApiValidation.ValidateInternRequestAsync(request, dbContext);
             if (validationError is not null)
@@ -70,7 +73,8 @@ public static class InternEndpoints
 
             var intern = request.ToEntity();
             dbContext.Interns.Add(intern);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.WriteCreateAsync(dbContext, principal, "intern", intern.Id, cancellationToken);
 
             var createdIntern = await dbContext.Interns
                 .Include(item => item.Internships)
@@ -79,7 +83,7 @@ public static class InternEndpoints
                 .Include(item => item.Internships)
                     .ThenInclude(internship => internship.Assignments)
                         .ThenInclude(assignment => assignment.Supervisor)
-                .SingleAsync(item => item.Id == intern.Id);
+                .SingleAsync(item => item.Id == intern.Id, cancellationToken);
 
             return Results.Created($"/api/interns/{intern.Id}", createdIntern.ToResponse());
         });
@@ -87,10 +91,14 @@ public static class InternEndpoints
         group.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.InternsManage)] async (
             Guid id,
             InternRequest request,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "intern", id, cancellationToken);
             var existingIntern = await dbContext.Interns
-                .SingleOrDefaultAsync(item => item.Id == id);
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
             if (existingIntern is null)
             {
@@ -141,8 +149,12 @@ public static class InternEndpoints
                 dbContext.Internships.AddRange(replacementInternships);
             }
 
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync();
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
 
             var updatedIntern = await dbContext.Interns
                 .AsNoTracking()
@@ -152,23 +164,31 @@ public static class InternEndpoints
                 .Include(item => item.Internships)
                     .ThenInclude(internship => internship.Assignments)
                         .ThenInclude(assignment => assignment.Supervisor)
-                .SingleAsync(item => item.Id == id);
+                .SingleAsync(item => item.Id == id, cancellationToken);
 
             return Results.Ok(updatedIntern.ToResponse());
         });
 
         group.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.InternsManage)] async (
             Guid id,
-            ApplicationDbContext dbContext) =>
+            ClaimsPrincipal principal,
+            ApplicationDbContext dbContext,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
-            var intern = await dbContext.Interns.SingleOrDefaultAsync(item => item.Id == id);
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "intern", id, cancellationToken);
+            var intern = await dbContext.Interns.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
             if (intern is null)
             {
                 return Results.NotFound(new ApiError("INTERN_NOT_FOUND", "Der Praktikant wurde nicht gefunden."));
             }
 
             dbContext.Interns.Remove(intern);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteDeleteAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
             return Results.NoContent();
         });
 

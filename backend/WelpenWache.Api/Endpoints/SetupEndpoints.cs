@@ -4,6 +4,7 @@ using WelpenWache.Api.Data;
 using WelpenWache.Api.Domain;
 using WelpenWache.Api.Infrastructure;
 using WelpenWache.Api.Security;
+using WelpenWache.Api.Services;
 
 namespace WelpenWache.Api.Endpoints;
 
@@ -22,11 +23,13 @@ public static class SetupEndpoints
         group.MapPost("/admin", async (
             SetupAdminRequest request,
             ApplicationDbContext dbContext,
-            JwtTokenService tokenService) =>
+            JwtTokenService tokenService,
+            AuditLogService auditLogService,
+            CancellationToken cancellationToken) =>
         {
             var userName = request.UserName.Trim();
 
-            if (await dbContext.Users.AnyAsync())
+            if (await dbContext.Users.AnyAsync(cancellationToken))
             {
                 return Results.Conflict(new ApiError("SETUP_COMPLETED", "Die Initialkonfiguration wurde bereits abgeschlossen."));
             }
@@ -52,7 +55,8 @@ public static class SetupEndpoints
             }));
 
             dbContext.Users.Add(adminUser);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogService.WriteCreateAsync(dbContext, principal: null, "user", adminUser.Id, cancellationToken);
 
             return Results.Created("/api/setup/status", tokenService.CreateToken(adminUser));
         });

@@ -63,8 +63,10 @@ public static class DocumentTemplateEndpoints
 
         group.MapPost("/", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
             [FromForm] DocumentTemplateUpsertForm form,
+            ClaimsPrincipal principal,
             ApplicationDbContext dbContext,
             TemplateStorageService templateStorageService,
+            AuditLogService auditLogService,
             CancellationToken cancellationToken) =>
         {
             var validationError = ApiValidation.ValidateDocumentTemplateForm(form, fileRequired: true);
@@ -91,6 +93,7 @@ public static class DocumentTemplateEndpoints
 
                 dbContext.DocumentTemplates.Add(template);
                 await dbContext.SaveChangesAsync(cancellationToken);
+                await auditLogService.WriteCreateAsync(dbContext, principal, "documentTemplate", template.Id, cancellationToken);
 
                 return Results.Created($"/api/document-templates/{template.Id}", template.ToResponse());
             }
@@ -109,10 +112,13 @@ public static class DocumentTemplateEndpoints
         group.MapPut("/{id:guid}", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
             Guid id,
             [FromForm] DocumentTemplateUpsertForm form,
+            ClaimsPrincipal principal,
             ApplicationDbContext dbContext,
             TemplateStorageService templateStorageService,
+            AuditLogService auditLogService,
             CancellationToken cancellationToken) =>
         {
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "documentTemplate", id, cancellationToken);
             var template = await dbContext.DocumentTemplates.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
             if (template is null)
             {
@@ -143,6 +149,10 @@ public static class DocumentTemplateEndpoints
                 template.IsActive = form.IsActive;
 
                 await dbContext.SaveChangesAsync(cancellationToken);
+                if (auditCapture is not null)
+                {
+                    await auditLogService.WriteUpdateAsync(dbContext, principal, auditCapture, cancellationToken);
+                }
 
                 if (storedFile is not null)
                 {
@@ -165,10 +175,13 @@ public static class DocumentTemplateEndpoints
 
         group.MapDelete("/{id:guid}", [Authorize(Policy = PermissionCatalog.DocumentsManage)] async (
             Guid id,
+            ClaimsPrincipal principal,
             ApplicationDbContext dbContext,
             TemplateStorageService templateStorageService,
+            AuditLogService auditLogService,
             CancellationToken cancellationToken) =>
         {
+            var auditCapture = await auditLogService.CaptureAsync(dbContext, "documentTemplate", id, cancellationToken);
             var template = await dbContext.DocumentTemplates.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
             if (template is null)
             {
@@ -177,6 +190,10 @@ public static class DocumentTemplateEndpoints
 
             dbContext.DocumentTemplates.Remove(template);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (auditCapture is not null)
+            {
+                await auditLogService.WriteDeleteAsync(dbContext, principal, auditCapture, cancellationToken);
+            }
             templateStorageService.DeleteTemplate(template.RelativeFilePath);
             return Results.NoContent();
         });
