@@ -146,12 +146,172 @@ internal static class ApiValidation
             {
                 var hasAssignments = await dbContext.Assignments.AnyAsync(assignment =>
                     assignment.SupervisorId.HasValue && removedSupervisorIds.Contains(assignment.SupervisorId.Value));
+                var hasTemplateAssignments = await dbContext.InternshipTemplateAssignments.AnyAsync(assignment =>
+                    assignment.SupervisorId.HasValue && removedSupervisorIds.Contains(assignment.SupervisorId.Value));
 
-                if (hasAssignments)
+                if (hasAssignments || hasTemplateAssignments)
                 {
-                    return new ApiError("VALIDATION_ERROR", "Betreuer mit bestehenden Zuweisungen koennen nicht entfernt werden.");
+                    return new ApiError(
+                        "VALIDATION_ERROR",
+                        "Betreuer mit bestehenden Zuweisungen oder Vorlagenzuweisungen können nicht entfernt werden.");
                 }
             }
+        }
+
+        return null;
+    }
+
+    public static async Task<ApiError?> ValidateInternshipTemplateRequestAsync(
+        InternshipTemplateUpsertRequest request,
+        ApplicationDbContext dbContext)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return new ApiError("VALIDATION_ERROR", "Der Name der Praktikums-Vorlage ist erforderlich.");
+        }
+
+        var orderedAssignments = request.Assignments
+            .OrderBy(assignment => assignment.SortOrder)
+            .ThenBy(assignment => assignment.StartOffsetDays)
+            .ThenBy(assignment => assignment.EndOffsetDays)
+            .ToList();
+
+        if (orderedAssignments.Count == 0)
+        {
+            return new ApiError("VALIDATION_ERROR", "Eine Praktikums-Vorlage benötigt mindestens einen Abschnitt.");
+        }
+
+        if (orderedAssignments.GroupBy(assignment => assignment.SortOrder).Any(group => group.Count() > 1))
+        {
+            return new ApiError("VALIDATION_ERROR", "Die Sortierreihenfolge der Vorlagen-Abschnitte muss eindeutig sein.");
+        }
+
+        var teamIds = orderedAssignments
+            .Select(assignment => assignment.TeamId)
+            .Distinct()
+            .ToArray();
+        var supervisorIds = orderedAssignments
+            .Where(assignment => assignment.SupervisorId.HasValue)
+            .Select(assignment => assignment.SupervisorId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (teamIds.Any(teamId => teamId == Guid.Empty))
+        {
+            return new ApiError("VALIDATION_ERROR", "Jeder Vorlagen-Abschnitt benötigt ein gültiges Team.");
+        }
+
+        var knownTeamIds = await dbContext.Teams
+            .Where(team => teamIds.Contains(team.Id))
+            .Select(team => team.Id)
+            .ToListAsync();
+
+        if (knownTeamIds.Count != teamIds.Length)
+        {
+            return new ApiError("VALIDATION_ERROR", "Mindestens ein ausgewaehltes Team existiert nicht mehr.");
+        }
+
+        Dictionary<Guid, Guid>? supervisorTeamMap = null;
+        if (supervisorIds.Any(supervisorId => supervisorId == Guid.Empty))
+        {
+            return new ApiError("VALIDATION_ERROR", "Die Vorlage enthält eine ungültige Betreuer-ID.");
+        }
+
+        if (supervisorIds.Length > 0)
+        {
+            supervisorTeamMap = await dbContext.Supervisors
+                .Where(supervisor => supervisorIds.Contains(supervisor.Id))
+                .ToDictionaryAsync(supervisor => supervisor.Id, supervisor => supervisor.TeamId);
+
+            if (supervisorTeamMap.Count != supervisorIds.Length)
+            {
+                return new ApiError("VALIDATION_ERROR", "Mindestens ein ausgewaehlter Betreuer existiert nicht mehr.");
+            }
+        }
+
+        for (var assignmentIndex = 0; assignmentIndex < orderedAssignments.Count; assignmentIndex++)
+        {
+            var assignment = orderedAssignments[assignmentIndex];
+
+            if (assignment.SortOrder < 0)
+            {
+                return new ApiError("VALIDATION_ERROR", "Die Sortierreihenfolge der Vorlagen-Abschnitte darf nicht negativ sein.");
+            }
+
+            if (assignment.StartOffsetDays < 0 || assignment.EndOffsetDays < 0)
+            {
+                return new ApiError("VALIDATION_ERROR", "Relative Tages-Offsets müssen größer oder gleich null sein.");
+            }
+
+            if (assignment.StartOffsetDays > assignment.EndOffsetDays)
+            {
+                return new ApiError("VALIDATION_ERROR", "Ein Vorlagen-Abschnitt hat ein ungültiges End-Offset.");
+            }
+
+            if (assignment.SupervisorId is Guid supervisorId
+                && supervisorTeamMap is not null
+                && supervisorTeamMap.GetValueOrDefault(supervisorId) != assignment.TeamId)
+            {
+                return new ApiError("VALIDATION_ERROR", "Der ausgewählte Betreuer muss zum zugewiesenen Team gehören.");
+            }
+
+            if (assignmentIndex == 0 && assignment.StartOffsetDays != 0)
+            {
+                return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage muss mit Tag 0 beginnen.");
+            }
+
+            if (assignmentIndex == 0)
+            {
+                continue;
+            }
+
+            var previous = orderedAssignments[assignmentIndex - 1];
+            if (previous.EndOffsetDays >= assignment.StartOffsetDays)
+            {
+                return new ApiError("VALIDATION_ERROR", "Vorlagen-Abschnitte dürfen sich nicht überschneiden.");
+            }
+        }
+
+        return null;
+    }
+
+    public static ApiError? ValidateAppliedInternshipTemplate(InternshipTemplateApplyResponse response)
+    {
+        if (response.Assignments.Count == 0)
+        {
+            return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage erzeugt keine Teamzuweisungen.");
+        }
+
+        var orderedAssignments = response.Assignments
+            .OrderBy(assignment => assignment.StartDate)
+            .ThenBy(assignment => assignment.EndDate)
+            .ToList();
+
+        for (var assignmentIndex = 0; assignmentIndex < orderedAssignments.Count; assignmentIndex++)
+        {
+            var assignment = orderedAssignments[assignmentIndex];
+            if (assignment.StartDate > assignment.EndDate)
+            {
+                return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage erzeugt einen ungültigen Zeitraum.");
+            }
+
+            if (assignmentIndex == 0)
+            {
+                continue;
+            }
+
+            var previous = orderedAssignments[assignmentIndex - 1];
+            if (previous.EndDate >= assignment.StartDate)
+            {
+                return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage erzeugt sich überschneidende Teamzuweisungen.");
+            }
+        }
+
+        if (!WeekdaysAreFullyCovered(response.InternshipStartDate, response.InternshipEndDate, orderedAssignments))
+        {
+            return new ApiError(
+                "VALIDATION_ERROR",
+                "Die Praktikums-Vorlage deckt für dieses Startdatum nicht alle Werktage ab.");
         }
 
         return null;
@@ -277,6 +437,26 @@ internal static class ApiValidation
     }
 
     private static bool WeekdaysAreFullyCovered(DateOnly startDate, DateOnly endDate, IReadOnlyList<AssignmentRequest> assignments)
+    {
+        var cursor = startDate;
+
+        foreach (var assignment in assignments)
+        {
+            if (ContainsWeekday(cursor, assignment.StartDate.AddDays(-1)))
+            {
+                return false;
+            }
+
+            cursor = assignment.EndDate.AddDays(1);
+        }
+
+        return !ContainsWeekday(cursor, endDate);
+    }
+
+    private static bool WeekdaysAreFullyCovered(
+        DateOnly startDate,
+        DateOnly endDate,
+        IReadOnlyList<InternshipTemplateApplyAssignmentResponse> assignments)
     {
         var cursor = startDate;
 
@@ -456,6 +636,15 @@ internal static class ApiAccess
         principal.IsAdministrator()
         || principal.HasPermission(PermissionCatalog.DocumentsView)
         || principal.HasPermission(PermissionCatalog.DocumentsManage);
+
+    public static bool CanAccessInternshipTemplates(ClaimsPrincipal principal) =>
+        principal.IsAdministrator()
+        || principal.HasPermission(PermissionCatalog.InternsView)
+        || principal.HasPermission(PermissionCatalog.InternsManage);
+
+    public static bool CanManageInterns(ClaimsPrincipal principal) =>
+        principal.IsAdministrator()
+        || principal.HasPermission(PermissionCatalog.InternsManage);
 }
 
 internal static class MappingExtensions
@@ -566,6 +755,50 @@ internal static class MappingExtensions
                 })
                 .ToList()
         };
+
+    public static InternshipTemplateResponse ToResponse(this InternshipTemplate template) =>
+        new(
+            template.Id,
+            template.Name,
+            template.Description,
+            template.IsActive,
+            template.Assignments
+                .OrderBy(assignment => assignment.SortOrder)
+                .ThenBy(assignment => assignment.StartOffsetDays)
+                .ThenBy(assignment => assignment.EndOffsetDays)
+                .Select(assignment => new InternshipTemplateAssignmentResponse(
+                    assignment.Id,
+                    assignment.TeamId,
+                    assignment.Team.Name,
+                    assignment.Team.ColorHex,
+                    assignment.SupervisorId,
+                    assignment.Supervisor?.Name,
+                    assignment.StartOffsetDays,
+                    assignment.EndOffsetDays,
+                    assignment.SortOrder))
+                .ToList());
+
+    public static InternshipTemplateApplyResponse ToApplyResponse(
+        this InternshipTemplate template,
+        DateOnly startDate) =>
+        new(
+            template.Id,
+            template.Name,
+            startDate,
+            template.Assignments.Max(assignment => startDate.AddDays(assignment.EndOffsetDays)),
+            template.Assignments
+                .OrderBy(assignment => assignment.SortOrder)
+                .ThenBy(assignment => assignment.StartOffsetDays)
+                .ThenBy(assignment => assignment.EndOffsetDays)
+                .Select(assignment => new InternshipTemplateApplyAssignmentResponse(
+                    assignment.TeamId,
+                    assignment.Team.Name,
+                    assignment.Team.ColorHex,
+                    assignment.SupervisorId,
+                    assignment.Supervisor?.Name,
+                    startDate.AddDays(assignment.StartOffsetDays),
+                    startDate.AddDays(assignment.EndOffsetDays)))
+                .ToList());
 
     public static SupervisorResponse ToResponse(this Supervisor supervisor) =>
         new(supervisor.Id, supervisor.TeamId, supervisor.Name, supervisor.Notes);

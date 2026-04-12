@@ -137,6 +137,18 @@ internal sealed class AuditLogService
 
                 return template is null ? null : AuditLogFactory.CaptureSnapshot(template);
             }
+            case "internshipTemplate":
+            {
+                var template = await dbContext.InternshipTemplates
+                    .AsNoTracking()
+                    .Include(item => item.Assignments)
+                        .ThenInclude(assignment => assignment.Team)
+                    .Include(item => item.Assignments)
+                        .ThenInclude(assignment => assignment.Supervisor)
+                    .SingleOrDefaultAsync(item => item.Id == entityId, cancellationToken);
+
+                return template is null ? null : AuditLogFactory.CaptureSnapshot(template);
+            }
             default:
                 throw new InvalidOperationException($"Unsupported audit entity type '{entityType}'.");
         }

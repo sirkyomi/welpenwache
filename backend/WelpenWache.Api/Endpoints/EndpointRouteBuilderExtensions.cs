@@ -11,6 +11,7 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapUserEndpoints();
         endpoints.MapTeamEndpoints();
         endpoints.MapInternEndpoints();
+        endpoints.MapInternshipTemplateEndpoints();
         endpoints.MapDocumentTemplateEndpoints();
         endpoints.MapCalendarEndpoints();
 

@@ -17,4 +17,6 @@ public sealed class Team
     public List<Supervisor> Supervisors { get; set; } = [];
 
     public List<InternshipAssignment> Assignments { get; set; } = [];
+
+    public List<InternshipTemplateAssignment> InternshipTemplateAssignments { get; set; } = [];
 }

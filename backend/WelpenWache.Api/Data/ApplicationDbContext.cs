@@ -21,6 +21,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<InternshipAssignment> Assignments => Set<InternshipAssignment>();
 
+    public DbSet<InternshipTemplate> InternshipTemplates => Set<InternshipTemplate>();
+
+    public DbSet<InternshipTemplateAssignment> InternshipTemplateAssignments => Set<InternshipTemplateAssignment>();
+
     public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -136,6 +140,36 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(supervisor => supervisor.Assignments)
                 .HasForeignKey(assignment => assignment.SupervisorId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InternshipTemplate>(entity =>
+        {
+            entity.ToTable("InternshipTemplates");
+            entity.HasKey(template => template.Id);
+            entity.Property(template => template.Name).HasMaxLength(160).IsRequired();
+            entity.Property(template => template.Description).HasMaxLength(500);
+            entity.HasMany(template => template.Assignments)
+                .WithOne(assignment => assignment.InternshipTemplate)
+                .HasForeignKey(assignment => assignment.InternshipTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(template => new { template.IsActive, template.Name });
+        });
+
+        modelBuilder.Entity<InternshipTemplateAssignment>(entity =>
+        {
+            entity.ToTable("InternshipTemplateAssignments");
+            entity.HasKey(assignment => assignment.Id);
+            entity.HasOne(assignment => assignment.Team)
+                .WithMany(team => team.InternshipTemplateAssignments)
+                .HasForeignKey(assignment => assignment.TeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(assignment => assignment.Supervisor)
+                .WithMany(supervisor => supervisor.InternshipTemplateAssignments)
+                .HasForeignKey(assignment => assignment.SupervisorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(assignment => new { assignment.InternshipTemplateId, assignment.SortOrder });
+            entity.HasIndex(assignment => assignment.TeamId);
+            entity.HasIndex(assignment => assignment.SupervisorId);
         });
 
         modelBuilder.Entity<DocumentTemplate>(entity =>
