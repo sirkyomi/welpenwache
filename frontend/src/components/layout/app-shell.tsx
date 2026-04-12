@@ -19,6 +19,7 @@ import { CalendarPage } from '@/features/calendar/calendar-page'
 import { DocumentTemplatesPage } from '@/features/document-templates/document-templates-page'
 import { InternDetailPage } from '@/features/interns/intern-detail-page'
 import { InternsPage } from '@/features/interns/interns-page'
+import { InternshipTemplatesPage } from '@/features/internship-templates/internship-templates-page'
 import { useLanguage } from '@/features/localization/language-provider'
 import { TeamDetailPage } from '@/features/teams/team-detail-page'
 import { useTheme } from '@/features/theme/theme-provider'
@@ -50,6 +51,7 @@ export function AppShell() {
   const canViewInterns =
     canViewCalendar || hasPermission('documents.view') || hasPermission('documents.manage')
   const canViewTeams = hasPermission('teams.view') || hasPermission('teams.manage')
+  const canViewInternshipTemplates = hasPermission('interns.view') || hasPermission('interns.manage')
   const canViewDocumentTemplates =
     hasPermission('documents.view') || hasPermission('documents.manage')
   const canViewAuditLog = Boolean(user?.isAdministrator)
@@ -58,8 +60,10 @@ export function AppShell() {
     ? '/'
     : canViewInterns
       ? '/praktikanten'
-      : canViewTeams
-        ? '/teams'
+        : canViewTeams
+          ? '/teams'
+        : canViewInternshipTemplates
+          ? '/internship-templates'
         : canViewDocumentTemplates
           ? '/dokumentvorlagen'
           : canViewAuditLog
@@ -80,6 +84,12 @@ export function AppShell() {
   const navigation = [
     { to: '/', label: t('navigation.calendar'), icon: CalendarDays, visible: canViewCalendar },
     { to: '/praktikanten', label: t('navigation.interns'), icon: UsersRound, visible: canViewInterns },
+    {
+      to: '/internship-templates',
+      label: t('navigation.internshipTemplates'),
+      icon: CalendarDays,
+      visible: canViewInternshipTemplates,
+    },
     { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
     { to: '/dokumentvorlagen', label: t('navigation.documentTemplates'), icon: FileCog, visible: canViewDocumentTemplates },
     { to: '/audit-log', label: t('navigation.auditLog'), icon: ScrollText, visible: canViewAuditLog },
@@ -98,6 +108,10 @@ export function AppShell() {
 
       if (location.pathname.startsWith('/teams')) {
         return t('navigation.teams')
+      }
+
+      if (location.pathname.startsWith('/internship-templates')) {
+        return t('navigation.internshipTemplates')
       }
 
       if (location.pathname.startsWith('/dokumentvorlagen')) {
@@ -253,6 +267,14 @@ export function AppShell() {
               element={
                 <RestrictedRoute allowed={canViewTeams} redirectTo={fallbackRoute}>
                   <TeamDetailPage />
+                </RestrictedRoute>
+              }
+            />
+            <Route
+              path="/internship-templates"
+              element={
+                <RestrictedRoute allowed={canViewInternshipTemplates} redirectTo={fallbackRoute}>
+                  <InternshipTemplatesPage />
                 </RestrictedRoute>
               }
             />

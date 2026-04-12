@@ -152,9 +152,14 @@ public static class TeamEndpoints
             }
 
             var hasAssignments = await dbContext.Assignments.AnyAsync(item => item.TeamId == id, cancellationToken);
-            if (hasAssignments)
+            var hasTemplateAssignments = await dbContext.InternshipTemplateAssignments
+                .AnyAsync(item => item.TeamId == id, cancellationToken);
+
+            if (hasAssignments || hasTemplateAssignments)
             {
-                return Results.BadRequest(new ApiError("TEAM_IN_USE", "Teams mit bestehenden Zuweisungen koennen nicht geloescht werden."));
+                return Results.BadRequest(new ApiError(
+                    "TEAM_IN_USE",
+                    "Teams mit bestehenden Zuweisungen oder Vorlagen koennen nicht geloescht werden."));
             }
 
             dbContext.Teams.Remove(team);

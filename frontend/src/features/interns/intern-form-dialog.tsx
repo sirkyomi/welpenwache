@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -6,8 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@/features/auth/auth-provider'
 import { useLanguage } from '@/features/localization/language-provider'
-import type { Gender, Intern, Team } from '@/lib/types'
+import { ApiError, api } from '@/lib/api'
+import { internshipTemplateQueryKeys } from '@/lib/query-keys'
+import type { Gender, Intern, InternshipTemplate, Team } from '@/lib/types'
 
 interface AssignmentFormState {
   teamId: string
@@ -17,6 +22,7 @@ interface AssignmentFormState {
 }
 
 interface InternshipFormState {
+  templateId: string
   startDate: string
   endDate: string
   note: string
@@ -77,6 +83,7 @@ function createEmptyAssignment(startDate = ''): AssignmentFormState {
 
 function createEmptyInternship(startDate = ''): InternshipFormState {
   return {
+    templateId: '',
     startDate,
     endDate: '',
     note: '',
@@ -107,6 +114,7 @@ function buildForm(intern?: Intern | null, startDate?: string): InternFormState 
     school: intern.school ?? '',
     notes: intern.notes ?? '',
     internships: intern.internships.map((internship) => ({
+      templateId: '',
       startDate: internship.startDate,
       endDate: internship.endDate,
       note: internship.note ?? '',
@@ -151,9 +159,64 @@ export function InternFormDialog({
   isPending,
   idPrefix,
 }: InternFormDialogProps) {
+  const { token } = useAuth()
   const { t } = useLanguage()
   const [form, setForm] = useState<InternFormState>(() => buildForm(intern, startDate))
   const isEditMode = Boolean(intern)
+
+  const templatesQuery = useQuery({
+    queryKey: internshipTemplateQueryKeys.active,
+    queryFn: () => api.getInternshipTemplates(token!),
+    enabled: Boolean(token),
+  })
+
+  const activeTemplates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data])
+
+  const applyTemplateMutation = useMutation({
+    mutationFn: async ({
+      internshipIndex,
+      templateId,
+      startDate: internshipStartDate,
+    }: {
+      internshipIndex: number
+      templateId: string
+      startDate: string
+    }) => {
+      if (!token) {
+        return null
+      }
+
+      const result = await api.applyInternshipTemplate(token, templateId, { startDate: internshipStartDate })
+      return { internshipIndex, result }
+    },
+    onSuccess: (payload) => {
+      if (!payload) {
+        return
+      }
+
+      setForm((current) => ({
+        ...current,
+        internships: current.internships.map((internship, index) =>
+          index === payload.internshipIndex
+            ? {
+                ...internship,
+                endDate: payload.result.internshipEndDate,
+                assignments: payload.result.assignments.map((assignment) => ({
+                  teamId: assignment.teamId,
+                  supervisorId: assignment.supervisorId ?? '',
+                  startDate: assignment.startDate,
+                  endDate: assignment.endDate,
+                })),
+              }
+            : internship,
+        ),
+      }))
+      toast.success(t('internshipTemplates.applyTemplateSuccess'))
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('internshipTemplates.applyTemplateError'))
+    },
+  })
 
   useEffect(() => {
     if (!open) {
@@ -275,22 +338,52 @@ export function InternFormDialog({
     }))
   }
 
+  const applyTemplate = async (internshipIndex: number) => {
+    const internship = form.internships[internshipIndex]
+    if (!internship) {
+      return
+    }
+
+    if (!internship.startDate) {
+      toast.error(t('internshipTemplates.applyTemplateMissingStartDate'))
+      return
+    }
+
+    if (!internship.templateId) {
+      return
+    }
+
+    const hasMeaningfulAssignments = internship.assignments.some((assignment) =>
+      Boolean(assignment.teamId || assignment.supervisorId || assignment.startDate || assignment.endDate),
+    )
+
+    if (hasMeaningfulAssignments && !window.confirm(t('internshipTemplates.applyTemplateConfirm'))) {
+      return
+    }
+
+    await applyTemplateMutation.mutateAsync({
+      internshipIndex,
+      templateId: internship.templateId,
+      startDate: internship.startDate,
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+      <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{isEditMode ? t('interns.editTitle') : t('interns.createTitle')}</DialogTitle>
           <DialogDescription>{t('interns.formDescription')}</DialogDescription>
         </DialogHeader>
 
         <form
-          className="space-y-5"
+          className="min-w-0 space-y-5"
           onSubmit={(event) => {
             event.preventDefault()
             void onSubmit(buildPayload(form))
           }}
         >
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 lg:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-first-name`}>{t('interns.firstName')}</Label>
               <Input
@@ -371,7 +464,7 @@ export function InternFormDialog({
                   </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 lg:grid-cols-3">
                   <div className="space-y-2">
                     <Label>{t('interns.startDate')}</Label>
                     <Input
@@ -397,6 +490,52 @@ export function InternFormDialog({
                   </div>
                 </div>
 
+                <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/60 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="space-y-2">
+                    <Label>{t('internshipTemplates.selectTemplate')}</Label>
+                    <Select
+                      value={internship.templateId}
+                      onValueChange={(value) => updateInternship(internshipIndex, 'templateId', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('internshipTemplates.templatePlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templatesQuery.isPending ? (
+                          <SelectItem value="__loading__" disabled>
+                            {t('internshipTemplates.selectLoading')}
+                          </SelectItem>
+                        ) : templatesQuery.isError ? (
+                          <SelectItem value="__error__" disabled>
+                            {t('internshipTemplates.selectLoadFailed')}
+                          </SelectItem>
+                        ) : activeTemplates.length === 0 ? (
+                          <SelectItem value="__empty__" disabled>
+                            {t('internshipTemplates.selectEmptyActive')}
+                          </SelectItem>
+                        ) : (
+                          activeTemplates.map((template: InternshipTemplate) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">{t('internshipTemplates.applyTemplateHelp')}</p>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void applyTemplate(internshipIndex)}
+                      disabled={!internship.templateId || applyTemplateMutation.isPending}
+                    >
+                      {t('internshipTemplates.applyTemplate')}
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -414,7 +553,7 @@ export function InternFormDialog({
                     return (
                       <div
                         key={`${internshipIndex}-${assignmentIndex}`}
-                        className="grid gap-3 rounded-2xl border border-border/70 p-4 md:grid-cols-[1.2fr_1.2fr_1fr_1fr_auto]"
+                        className="grid gap-3 rounded-2xl border border-border/70 p-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
                       >
                         <div className="space-y-2">
                           <Label>{t('interns.team')}</Label>

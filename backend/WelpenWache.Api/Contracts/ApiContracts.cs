@@ -126,6 +126,55 @@ public sealed record InternshipResponse(
     string? Note,
     IReadOnlyList<AssignmentResponse> Assignments);
 
+public sealed record InternshipTemplateAssignmentRequest(
+    Guid TeamId,
+    Guid? SupervisorId,
+    int StartOffsetDays,
+    int EndOffsetDays,
+    int SortOrder);
+
+public sealed record InternshipTemplateUpsertRequest(
+    string Name,
+    string? Description,
+    bool IsActive,
+    IReadOnlyList<InternshipTemplateAssignmentRequest> Assignments);
+
+public sealed record InternshipTemplateAssignmentResponse(
+    Guid Id,
+    Guid TeamId,
+    string TeamName,
+    string TeamColorHex,
+    Guid? SupervisorId,
+    string? SupervisorName,
+    int StartOffsetDays,
+    int EndOffsetDays,
+    int SortOrder);
+
+public sealed record InternshipTemplateResponse(
+    Guid Id,
+    string Name,
+    string? Description,
+    bool IsActive,
+    IReadOnlyList<InternshipTemplateAssignmentResponse> Assignments);
+
+public sealed record InternshipTemplateApplyRequest(DateOnly StartDate);
+
+public sealed record InternshipTemplateApplyAssignmentResponse(
+    Guid TeamId,
+    string TeamName,
+    string TeamColorHex,
+    Guid? SupervisorId,
+    string? SupervisorName,
+    DateOnly StartDate,
+    DateOnly EndDate);
+
+public sealed record InternshipTemplateApplyResponse(
+    Guid TemplateId,
+    string TemplateName,
+    DateOnly InternshipStartDate,
+    DateOnly InternshipEndDate,
+    IReadOnlyList<InternshipTemplateApplyAssignmentResponse> Assignments);
+
 public sealed record InternResponse(
     Guid Id,
     string FirstName,

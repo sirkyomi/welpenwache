@@ -10,6 +10,7 @@ import type {
   DocumentTemplatePurpose,
   Gender,
   Intern,
+  InternshipTemplate,
   LanguagePreference,
   Permission,
   SetupStatusResponse,
@@ -195,6 +196,51 @@ export const api = {
   ) => request<Intern>(`/api/interns/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
   deleteIntern: (token: string, id: string) =>
     request<void>(`/api/interns/${id}`, { method: 'DELETE' }, token),
+  getInternshipTemplates: (token: string, options?: { includeInactive?: boolean }) => {
+    const query = options?.includeInactive ? '?includeInactive=true' : ''
+    return request<InternshipTemplate[]>(`/api/internship-templates${query}`, undefined, token)
+  },
+  createInternshipTemplate: (
+    token: string,
+    payload: {
+      name: string
+      description: string | null
+      isActive: boolean
+      assignments: Array<{
+        teamId: string
+        supervisorId: string | null
+        startOffsetDays: number
+        endOffsetDays: number
+        sortOrder: number
+      }>
+    },
+  ) => request<InternshipTemplate>('/api/internship-templates', { method: 'POST', body: JSON.stringify(payload) }, token),
+  updateInternshipTemplate: (
+    token: string,
+    id: string,
+    payload: {
+      name: string
+      description: string | null
+      isActive: boolean
+      assignments: Array<{
+        teamId: string
+        supervisorId: string | null
+        startOffsetDays: number
+        endOffsetDays: number
+        sortOrder: number
+      }>
+    },
+  ) =>
+    request<InternshipTemplate>(`/api/internship-templates/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+  deleteInternshipTemplate: (token: string, id: string) =>
+    request<void>(`/api/internship-templates/${id}`, { method: 'DELETE' }, token),
+  applyInternshipTemplate: (token: string, id: string, payload: { startDate: string }) =>
+    request<{
+      templateId: string
+      templateName: string
+      internshipEndDate: string
+      assignments: Array<{ teamId: string; supervisorId: string | null; startDate: string; endDate: string }>
+    }>(`/api/internship-templates/${id}/apply`, { method: 'POST', body: JSON.stringify(payload) }, token),
   generateCompletionDocuments: (token: string, internId: string) =>
     requestDownload(`/api/interns/${internId}/completion-documents`, { method: 'POST' }, token),
   getCalendarMonth: (token: string, year: number, month: number) =>

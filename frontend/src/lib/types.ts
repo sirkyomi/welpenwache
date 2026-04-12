@@ -6,7 +6,7 @@ export type Permission =
   | 'documents.view'
   | 'documents.manage'
 export type AuditLogAction = 'create' | 'update' | 'delete' | (string & {})
-export type AuditEntityType = 'intern' | 'team' | 'user' | 'documentTemplate' | (string & {})
+export type AuditEntityType = 'intern' | 'team' | 'user' | 'documentTemplate' | 'internshipTemplate' | (string & {})
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type LanguagePreference = 'de' | 'en'
@@ -81,6 +81,25 @@ export interface Internship {
   endDate: string
   note: string | null
   assignments: Assignment[]
+}
+
+export interface InternshipTemplateAssignment {
+  id: string
+  teamId: string
+  teamName: string
+  supervisorId: string | null
+  supervisorName: string | null
+  startOffsetDays: number
+  endOffsetDays: number
+  sortOrder: number
+}
+
+export interface InternshipTemplate {
+  id: string
+  name: string
+  description: string | null
+  isActive: boolean
+  assignments: InternshipTemplateAssignment[]
 }
 
 export interface Intern {

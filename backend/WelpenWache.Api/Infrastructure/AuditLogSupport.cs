@@ -41,6 +41,7 @@ internal static class AuditLogFactory
             UserAccount user => new AuditedEntitySnapshot("user", user.Id, user.UserName, BuildUserData(user)),
             Team team => new AuditedEntitySnapshot("team", team.Id, team.Name, BuildTeamData(team)),
             Intern intern => new AuditedEntitySnapshot("intern", intern.Id, intern.FullName, BuildInternData(intern)),
+            InternshipTemplate template => new AuditedEntitySnapshot("internshipTemplate", template.Id, template.Name, BuildInternshipTemplateData(template)),
             DocumentTemplate template => new AuditedEntitySnapshot("documentTemplate", template.Id, template.Name, BuildDocumentTemplateData(template)),
             _ => throw new InvalidOperationException($"Entity type '{entity.GetType().Name}' is not configured for audit logging.")
         };
@@ -175,6 +176,28 @@ internal static class AuditLogFactory
             ["originalFileName"] = template.OriginalFileName,
             ["isActive"] = template.IsActive,
             ["uploadedUtc"] = template.UploadedUtc.ToString("O")
+        };
+
+    private static JsonObject BuildInternshipTemplateData(InternshipTemplate template) =>
+        new()
+        {
+            ["name"] = template.Name,
+            ["description"] = template.Description,
+            ["isActive"] = template.IsActive,
+            ["assignments"] = ToJsonArray(template.Assignments
+                .OrderBy(assignment => assignment.SortOrder)
+                .ThenBy(assignment => assignment.StartOffsetDays)
+                .ThenBy(assignment => assignment.EndOffsetDays)
+                .Select(assignment => (JsonNode?)new JsonObject
+                {
+                    ["teamId"] = assignment.TeamId,
+                    ["teamName"] = assignment.Team?.Name,
+                    ["supervisorId"] = assignment.SupervisorId,
+                    ["supervisorName"] = assignment.Supervisor?.Name,
+                    ["startOffsetDays"] = assignment.StartOffsetDays,
+                    ["endOffsetDays"] = assignment.EndOffsetDays,
+                    ["sortOrder"] = assignment.SortOrder
+                }))
         };
 
     private static JsonArray ToJsonArray(IEnumerable<JsonNode?> nodes)
