@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -66,6 +73,12 @@ interface InternFormDialogProps {
   onSubmit: (payload: InternFormPayload) => Promise<unknown> | unknown
   isPending: boolean
   idPrefix: string
+}
+
+interface PendingTemplateApplication {
+  internshipIndex: number
+  templateId: string
+  startDate: string
 }
 
 function getSupervisorsForTeam(teams: Team[], teamId: string) {
@@ -162,6 +175,7 @@ export function InternFormDialog({
   const { token } = useAuth()
   const { t } = useLanguage()
   const [form, setForm] = useState<InternFormState>(() => buildForm(intern, startDate))
+  const [pendingTemplateApplication, setPendingTemplateApplication] = useState<PendingTemplateApplication | null>(null)
   const isEditMode = Boolean(intern)
 
   const templatesQuery = useQuery({
@@ -223,7 +237,9 @@ export function InternFormDialog({
       return
     }
 
-    setForm(buildForm(intern, startDate))
+    startTransition(() => {
+      setForm(buildForm(intern, startDate))
+    })
   }, [intern, open, startDate])
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -231,6 +247,7 @@ export function InternFormDialog({
 
     if (!nextOpen) {
       setForm(buildForm(intern, startDate))
+      setPendingTemplateApplication(null)
     }
   }
 
@@ -357,7 +374,12 @@ export function InternFormDialog({
       Boolean(assignment.teamId || assignment.supervisorId || assignment.startDate || assignment.endDate),
     )
 
-    if (hasMeaningfulAssignments && !window.confirm(t('internshipTemplates.applyTemplateConfirm'))) {
+    if (hasMeaningfulAssignments) {
+      setPendingTemplateApplication({
+        internshipIndex,
+        templateId: internship.templateId,
+        startDate: internship.startDate,
+      })
       return
     }
 
@@ -368,277 +390,320 @@ export function InternFormDialog({
     })
   }
 
+  const confirmTemplateApplication = async () => {
+    if (!pendingTemplateApplication) {
+      return
+    }
+
+    const nextTemplateApplication = pendingTemplateApplication
+    setPendingTemplateApplication(null)
+    await applyTemplateMutation.mutateAsync(nextTemplateApplication)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-5xl">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? t('interns.editTitle') : t('interns.createTitle')}</DialogTitle>
-          <DialogDescription>{t('interns.formDescription')}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog
+        open={Boolean(pendingTemplateApplication)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !applyTemplateMutation.isPending) {
+            setPendingTemplateApplication(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('internshipTemplates.applyTemplateConfirmTitle')}</DialogTitle>
+            <DialogDescription>{t('internshipTemplates.applyTemplateConfirm')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingTemplateApplication(null)}
+              disabled={applyTemplateMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" onClick={() => void confirmTemplateApplication()} disabled={applyTemplateMutation.isPending}>
+              {applyTemplateMutation.isPending
+                ? t('common.saving')
+                : t('internshipTemplates.applyTemplateConfirmAction')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <form
-          className="min-w-0 space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void onSubmit(buildPayload(form))
-          }}
-        >
-          <div className="grid gap-4 lg:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-first-name`}>{t('interns.firstName')}</Label>
-              <Input
-                id={`${idPrefix}-first-name`}
-                value={form.firstName}
-                onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-last-name`}>{t('interns.lastName')}</Label>
-              <Input
-                id={`${idPrefix}-last-name`}
-                value={form.lastName}
-                onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-gender`}>{t('interns.gender')}</Label>
-              <Select
-                value={form.gender}
-                onValueChange={(value) => setForm((current) => ({ ...current, gender: value as Gender }))}
-              >
-                <SelectTrigger id={`${idPrefix}-gender`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">{t('interns.genderMale')}</SelectItem>
-                  <SelectItem value="female">{t('interns.genderFemale')}</SelectItem>
-                  <SelectItem value="diverse">{t('interns.genderDiverse')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-school`}>{t('interns.school')}</Label>
-              <Input
-                id={`${idPrefix}-school`}
-                value={form.school}
-                onChange={(event) => setForm((current) => ({ ...current, school: event.target.value }))}
-              />
-            </div>
-          </div>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{isEditMode ? t('interns.editTitle') : t('interns.createTitle')}</DialogTitle>
+            <DialogDescription>{t('interns.formDescription')}</DialogDescription>
+          </DialogHeader>
 
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-notes`}>{t('interns.notes')}</Label>
-            <Textarea
-              id={`${idPrefix}-notes`}
-              value={form.notes}
-              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold">{t('interns.internships')}</h3>
-                <p className="text-xs text-muted-foreground">{t('interns.internshipsDescription')}</p>
+          <form
+            className="min-w-0 space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void onSubmit(buildPayload(form))
+            }}
+          >
+            <div className="grid gap-4 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-first-name`}>{t('interns.firstName')}</Label>
+                <Input
+                  id={`${idPrefix}-first-name`}
+                  value={form.firstName}
+                  onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
+                />
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addInternship}>
-                {t('interns.addInternship')}
-              </Button>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-last-name`}>{t('interns.lastName')}</Label>
+                <Input
+                  id={`${idPrefix}-last-name`}
+                  value={form.lastName}
+                  onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-gender`}>{t('interns.gender')}</Label>
+                <Select
+                  value={form.gender}
+                  onValueChange={(value) => setForm((current) => ({ ...current, gender: value as Gender }))}
+                >
+                  <SelectTrigger id={`${idPrefix}-gender`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">{t('interns.genderMale')}</SelectItem>
+                    <SelectItem value="female">{t('interns.genderFemale')}</SelectItem>
+                    <SelectItem value="diverse">{t('interns.genderDiverse')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-school`}>{t('interns.school')}</Label>
+                <Input
+                  id={`${idPrefix}-school`}
+                  value={form.school}
+                  onChange={(event) => setForm((current) => ({ ...current, school: event.target.value }))}
+                />
+              </div>
             </div>
 
-            {form.internships.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
-                {t('interns.noInternshipsYet')}
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-notes`}>{t('interns.notes')}</Label>
+              <Textarea
+                id={`${idPrefix}-notes`}
+                value={form.notes}
+                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold">{t('interns.internships')}</h3>
+                  <p className="text-xs text-muted-foreground">{t('interns.internshipsDescription')}</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addInternship}>
+                  {t('interns.addInternship')}
+                </Button>
               </div>
-            ) : null}
 
-            {form.internships.map((internship, internshipIndex) => (
-              <div key={internshipIndex} className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold">{t('interns.internshipTitle', { index: internshipIndex + 1 })}</h4>
-                    <p className="text-xs text-muted-foreground">{t('interns.internshipExample')}</p>
-                  </div>
-                  <Button type="button" variant="ghost" onClick={() => removeInternship(internshipIndex)}>
-                    {t('common.remove')}
-                  </Button>
+              {form.internships.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
+                  {t('interns.noInternshipsYet')}
                 </div>
+              ) : null}
 
-                <div className="grid gap-4 lg:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>{t('interns.startDate')}</Label>
-                    <Input
-                      type="date"
-                      value={internship.startDate}
-                      onChange={(event) => updateInternship(internshipIndex, 'startDate', event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('interns.endDate')}</Label>
-                    <Input
-                      type="date"
-                      value={internship.endDate}
-                      onChange={(event) => updateInternship(internshipIndex, 'endDate', event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('interns.internshipNote')}</Label>
-                    <Input
-                      value={internship.note}
-                      onChange={(event) => updateInternship(internshipIndex, 'note', event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/60 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                  <div className="space-y-2">
-                    <Label>{t('internshipTemplates.selectTemplate')}</Label>
-                    <Select
-                      value={internship.templateId}
-                      onValueChange={(value) => updateInternship(internshipIndex, 'templateId', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('internshipTemplates.templatePlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templatesQuery.isPending ? (
-                          <SelectItem value="__loading__" disabled>
-                            {t('internshipTemplates.selectLoading')}
-                          </SelectItem>
-                        ) : templatesQuery.isError ? (
-                          <SelectItem value="__error__" disabled>
-                            {t('internshipTemplates.selectLoadFailed')}
-                          </SelectItem>
-                        ) : activeTemplates.length === 0 ? (
-                          <SelectItem value="__empty__" disabled>
-                            {t('internshipTemplates.selectEmptyActive')}
-                          </SelectItem>
-                        ) : (
-                          activeTemplates.map((template: InternshipTemplate) => (
-                            <SelectItem key={template.id} value={template.id}>
-                              {template.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">{t('internshipTemplates.applyTemplateHelp')}</p>
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void applyTemplate(internshipIndex)}
-                      disabled={!internship.templateId || applyTemplateMutation.isPending}
-                    >
-                      {t('internshipTemplates.applyTemplate')}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+              {form.internships.map((internship, internshipIndex) => (
+                <div key={internshipIndex} className="space-y-4 rounded-3xl border border-border/80 bg-background/70 p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h5 className="text-sm font-semibold">{t('interns.assignments')}</h5>
-                      <p className="text-xs text-muted-foreground">{t('interns.assignmentsDescription')}</p>
+                      <h4 className="text-sm font-semibold">{t('interns.internshipTitle', { index: internshipIndex + 1 })}</h4>
+                      <p className="text-xs text-muted-foreground">{t('interns.internshipExample')}</p>
                     </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => addAssignment(internshipIndex)}>
-                      {t('interns.addAssignment')}
+                    <Button type="button" variant="ghost" onClick={() => removeInternship(internshipIndex)}>
+                      {t('common.remove')}
                     </Button>
                   </div>
 
-                  {internship.assignments.map((assignment, assignmentIndex) => {
-                    const supervisors = getSupervisorsForTeam(teams, assignment.teamId)
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>{t('interns.startDate')}</Label>
+                      <Input
+                        type="date"
+                        value={internship.startDate}
+                        onChange={(event) => updateInternship(internshipIndex, 'startDate', event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('interns.endDate')}</Label>
+                      <Input
+                        type="date"
+                        value={internship.endDate}
+                        onChange={(event) => updateInternship(internshipIndex, 'endDate', event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('interns.internshipNote')}</Label>
+                      <Input
+                        value={internship.note}
+                        onChange={(event) => updateInternship(internshipIndex, 'note', event.target.value)}
+                      />
+                    </div>
+                  </div>
 
-                    return (
-                      <div
-                        key={`${internshipIndex}-${assignmentIndex}`}
-                        className="grid gap-3 rounded-2xl border border-border/70 p-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                  <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/60 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-2">
+                      <Label>{t('internshipTemplates.selectTemplate')}</Label>
+                      <Select
+                        value={internship.templateId}
+                        onValueChange={(value) => updateInternship(internshipIndex, 'templateId', value)}
                       >
-                        <div className="space-y-2">
-                          <Label>{t('interns.team')}</Label>
-                          <Select
-                            value={assignment.teamId}
-                            onValueChange={(value) => updateAssignmentTeam(internshipIndex, assignmentIndex, value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('interns.teamPlaceholder')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {teams.map((team) => (
-                                <SelectItem key={team.id} value={team.id}>
-                                  {team.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{t('interns.supervisor')}</Label>
-                          <Select
-                            value={assignment.supervisorId}
-                            onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'supervisorId', value)}
-                            disabled={!assignment.teamId || supervisors.length === 0}
-                          >
-                            <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  !assignment.teamId
-                                    ? t('interns.supervisorChooseTeam')
-                                    : supervisors.length === 0
-                                      ? t('interns.supervisorUnavailable')
-                                      : t('interns.supervisorPlaceholder')
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {supervisors.map((supervisor) => (
-                                <SelectItem key={supervisor.id} value={supervisor.id}>
-                                  {supervisor.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{t('interns.from')}</Label>
-                          <Input
-                            type="date"
-                            value={assignment.startDate}
-                            onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'startDate', event.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{t('interns.until')}</Label>
-                          <Input
-                            type="date"
-                            value={assignment.endDate}
-                            onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'endDate', event.target.value)}
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            disabled={internship.assignments.length === 1}
-                            onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
-                          >
-                            {t('common.remove')}
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('internshipTemplates.templatePlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templatesQuery.isPending ? (
+                            <SelectItem value="__loading__" disabled>
+                              {t('internshipTemplates.selectLoading')}
+                            </SelectItem>
+                          ) : templatesQuery.isError ? (
+                            <SelectItem value="__error__" disabled>
+                              {t('internshipTemplates.selectLoadFailed')}
+                            </SelectItem>
+                          ) : activeTemplates.length === 0 ? (
+                            <SelectItem value="__empty__" disabled>
+                              {t('internshipTemplates.selectEmptyActive')}
+                            </SelectItem>
+                          ) : (
+                            activeTemplates.map((template: InternshipTemplate) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">{t('internshipTemplates.applyTemplateHelp')}</p>
+                    </div>
+                    <div className="flex self-stretch items-center lg:justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void applyTemplate(internshipIndex)}
+                        disabled={!internship.templateId || applyTemplateMutation.isPending}
+                      >
+                        {t('internshipTemplates.applyTemplate')}
+                      </Button>
+                    </div>
+                  </div>
 
-          <Button className="w-full" type="submit" disabled={isPending}>
-            {isPending ? t('common.saving') : t('common.save')}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-semibold">{t('interns.assignments')}</h5>
+                        <p className="text-xs text-muted-foreground">{t('interns.assignmentsDescription')}</p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={() => addAssignment(internshipIndex)}>
+                        {t('interns.addAssignment')}
+                      </Button>
+                    </div>
+
+                    {internship.assignments.map((assignment, assignmentIndex) => {
+                      const supervisors = getSupervisorsForTeam(teams, assignment.teamId)
+
+                      return (
+                        <div
+                          key={`${internshipIndex}-${assignmentIndex}`}
+                          className="grid gap-3 rounded-2xl border border-border/70 p-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                        >
+                          <div className="space-y-2">
+                            <Label>{t('interns.team')}</Label>
+                            <Select
+                              value={assignment.teamId}
+                              onValueChange={(value) => updateAssignmentTeam(internshipIndex, assignmentIndex, value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('interns.teamPlaceholder')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teams.map((team) => (
+                                  <SelectItem key={team.id} value={team.id}>
+                                    {team.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{t('interns.supervisor')}</Label>
+                            <Select
+                              value={assignment.supervisorId}
+                              onValueChange={(value) => updateAssignment(internshipIndex, assignmentIndex, 'supervisorId', value)}
+                              disabled={!assignment.teamId || supervisors.length === 0}
+                            >
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={
+                                    !assignment.teamId
+                                      ? t('interns.supervisorChooseTeam')
+                                      : supervisors.length === 0
+                                        ? t('interns.supervisorUnavailable')
+                                        : t('interns.supervisorPlaceholder')
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {supervisors.map((supervisor) => (
+                                  <SelectItem key={supervisor.id} value={supervisor.id}>
+                                    {supervisor.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{t('interns.from')}</Label>
+                            <Input
+                              type="date"
+                              value={assignment.startDate}
+                              onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'startDate', event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{t('interns.until')}</Label>
+                            <Input
+                              type="date"
+                              value={assignment.endDate}
+                              onChange={(event) => updateAssignment(internshipIndex, assignmentIndex, 'endDate', event.target.value)}
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={internship.assignments.length === 1}
+                              onClick={() => removeAssignment(internshipIndex, assignmentIndex)}
+                            >
+                              {t('common.remove')}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button className="w-full" type="submit" disabled={isPending}>
+              {isPending ? t('common.saving') : t('common.save')}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

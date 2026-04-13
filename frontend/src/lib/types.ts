@@ -92,6 +92,8 @@ export interface InternshipTemplateAssignment {
   startOffsetDays: number
   endOffsetDays: number
   sortOrder: number
+  startDayNumber?: number
+  endDayNumber?: number
 }
 
 export interface InternshipTemplate {

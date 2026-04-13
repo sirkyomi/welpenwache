@@ -1,4 +1,17 @@
-import { CalendarDays, FileCog, Github, Languages, MonitorCog, Moon, ScrollText, Shield, Sun, Users, UsersRound } from 'lucide-react'
+import {
+  CalendarDays,
+  CalendarRange,
+  FileCog,
+  Github,
+  Languages,
+  MonitorCog,
+  Moon,
+  ScrollText,
+  Shield,
+  Sun,
+  Users,
+  UsersRound,
+} from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -87,7 +100,7 @@ export function AppShell() {
     {
       to: '/internship-templates',
       label: t('navigation.internshipTemplates'),
-      icon: CalendarDays,
+      icon: CalendarRange,
       visible: canViewInternshipTemplates,
     },
     { to: '/teams', label: t('navigation.teams'), icon: Users, visible: canViewTeams },
