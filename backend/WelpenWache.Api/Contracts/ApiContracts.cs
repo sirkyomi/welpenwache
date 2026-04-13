@@ -148,7 +148,9 @@ public sealed record InternshipTemplateAssignmentResponse(
     string? SupervisorName,
     int StartOffsetDays,
     int EndOffsetDays,
-    int SortOrder);
+    int SortOrder,
+    int StartDayNumber,
+    int EndDayNumber);
 
 public sealed record InternshipTemplateResponse(
     Guid Id,

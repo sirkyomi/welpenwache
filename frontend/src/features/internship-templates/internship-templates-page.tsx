@@ -28,8 +28,8 @@ import type { InternshipTemplate, Team } from '@/lib/types'
 interface TemplateAssignmentFormState {
   teamId: string
   supervisorId: string
-  startOffsetDays: string
-  endOffsetDays: string
+  startDay: string
+  endDay: string
 }
 
 interface TemplateFormState {
@@ -42,8 +42,8 @@ interface TemplateFormState {
 const emptyAssignment = (): TemplateAssignmentFormState => ({
   teamId: '',
   supervisorId: '',
-  startOffsetDays: '0',
-  endOffsetDays: '0',
+  startDay: '1',
+  endDay: '1',
 })
 
 const emptyForm: TemplateFormState = {
@@ -55,6 +55,24 @@ const emptyForm: TemplateFormState = {
 
 function getSupervisorsForTeam(teams: Team[], teamId: string) {
   return teams.find((team) => team.id === teamId)?.supervisors ?? []
+}
+
+function offsetToDayNumber(offsetDays: number) {
+  return offsetDays + 1
+}
+
+function dayNumberToOffset(dayNumber: string) {
+  const parsedDayNumber = Number(dayNumber)
+
+  return Number.isFinite(parsedDayNumber) ? Math.max(Math.trunc(parsedDayNumber), 1) - 1 : 0
+}
+
+function getStartDayNumber(assignment: InternshipTemplate['assignments'][number]) {
+  return assignment.startDayNumber ?? offsetToDayNumber(assignment.startOffsetDays)
+}
+
+function getEndDayNumber(assignment: InternshipTemplate['assignments'][number]) {
+  return assignment.endDayNumber ?? offsetToDayNumber(assignment.endOffsetDays)
 }
 
 function buildForm(template?: InternshipTemplate | null): TemplateFormState {
@@ -71,8 +89,8 @@ function buildForm(template?: InternshipTemplate | null): TemplateFormState {
         ? template.assignments.map((assignment) => ({
             teamId: assignment.teamId,
             supervisorId: assignment.supervisorId ?? '',
-            startOffsetDays: String(assignment.startOffsetDays),
-            endOffsetDays: String(assignment.endOffsetDays),
+            startDay: String(getStartDayNumber(assignment)),
+            endDay: String(getEndDayNumber(assignment)),
           }))
         : [emptyAssignment()],
   }
@@ -116,8 +134,8 @@ export function InternshipTemplatesPage() {
         assignments: form.assignments.map((assignment, index) => ({
           teamId: assignment.teamId,
           supervisorId: assignment.supervisorId || null,
-          startOffsetDays: Number(assignment.startOffsetDays),
-          endOffsetDays: Number(assignment.endOffsetDays),
+          startOffsetDays: dayNumberToOffset(assignment.startDay),
+          endOffsetDays: dayNumberToOffset(assignment.endDay),
           sortOrder: index,
         })),
       }
@@ -429,8 +447,10 @@ export function InternshipTemplatesPage() {
                           <Label>{t('internshipTemplates.startOffsetDays')}</Label>
                           <Input
                             type="number"
-                            value={assignment.startOffsetDays}
-                            onChange={(event) => updateAssignment(assignmentIndex, 'startOffsetDays', event.target.value)}
+                            min={1}
+                            step={1}
+                            value={assignment.startDay}
+                            onChange={(event) => updateAssignment(assignmentIndex, 'startDay', event.target.value)}
                           />
                         </div>
 
@@ -438,8 +458,10 @@ export function InternshipTemplatesPage() {
                           <Label>{t('internshipTemplates.endOffsetDays')}</Label>
                           <Input
                             type="number"
-                            value={assignment.endOffsetDays}
-                            onChange={(event) => updateAssignment(assignmentIndex, 'endOffsetDays', event.target.value)}
+                            min={assignment.startDay || '1'}
+                            step={1}
+                            value={assignment.endDay}
+                            onChange={(event) => updateAssignment(assignmentIndex, 'endDay', event.target.value)}
                           />
                         </div>
 
@@ -532,8 +554,8 @@ export function InternshipTemplatesPage() {
                               <p className="font-medium">{assignment.teamName}</p>
                               <p className="text-muted-foreground">
                                 {t('internshipTemplates.offsetRange', {
-                                  start: assignment.startOffsetDays,
-                                  end: assignment.endOffsetDays,
+                                  start: getStartDayNumber(assignment),
+                                  end: getEndDayNumber(assignment),
                                 })}
                               </p>
                             </div>

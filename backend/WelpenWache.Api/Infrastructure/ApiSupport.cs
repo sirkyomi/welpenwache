@@ -257,7 +257,7 @@ internal static class ApiValidation
 
             if (assignmentIndex == 0 && assignment.StartOffsetDays != 0)
             {
-                return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage muss mit Tag 0 beginnen.");
+                return new ApiError("VALIDATION_ERROR", "Die Praktikums-Vorlage muss am ersten Praktikumstag beginnen.");
             }
 
             if (assignmentIndex == 0)
@@ -775,7 +775,9 @@ internal static class MappingExtensions
                     assignment.Supervisor?.Name,
                     assignment.StartOffsetDays,
                     assignment.EndOffsetDays,
-                    assignment.SortOrder))
+                    assignment.SortOrder,
+                    assignment.StartOffsetDays + 1,
+                    assignment.EndOffsetDays + 1))
                 .ToList());
 
     public static InternshipTemplateApplyResponse ToApplyResponse(
