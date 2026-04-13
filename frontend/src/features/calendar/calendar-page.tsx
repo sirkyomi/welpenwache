@@ -15,17 +15,18 @@ import {
   subMonths,
 } from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
-import { useQueries } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/auth-provider'
-import { CalendarCreateInternDialog } from '@/features/calendar/calendar-create-intern-dialog'
 import { appendReturnTo, formatCalendarMonth, parseCalendarMonth } from '@/features/calendar/calendar-navigation'
+import { InternFormDialog, type InternFormPayload } from '@/features/interns/intern-form-dialog'
 import { useLanguage } from '@/features/localization/language-provider'
 import { useTheme } from '@/features/theme/theme-provider'
-import { api } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import type { CalendarDayEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -133,6 +134,7 @@ export function CalendarPage() {
   const { hasPermission, token } = useAuth()
   const { formatMonthYear, formatWeekday, languagePreference, t, weekDayLabels } = useLanguage()
   const { resolvedTheme } = useTheme()
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [timelineTooltip, setTimelineTooltip] = useState<TimelineTooltipState | null>(null)
   const [hoveredCreateDate, setHoveredCreateDate] = useState<string | null>(null)
@@ -177,6 +179,32 @@ export function CalendarPage() {
       queryFn: () => api.getCalendarMonth(token!, year, month),
       enabled: Boolean(token),
     })),
+  })
+
+  const teamsQuery = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => api.getTeams(token!),
+    enabled: createDialogOpen && Boolean(token),
+  })
+
+  const createInternMutation = useMutation({
+    mutationFn: async (payload: InternFormPayload) => {
+      if (!token) {
+        return null
+      }
+
+      return api.createIntern(token, payload)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['interns'] })
+      await queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success(t('interns.created'))
+      setCreateDialogOpen(false)
+      setPendingCreateRange(null)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : t('interns.saveFailed'))
+    },
   })
 
   const dayLookup = useMemo(() => {
@@ -272,7 +300,7 @@ export function CalendarPage() {
       document.body.style.cursor = previousCursor
       window.removeEventListener('pointerup', handlePointerUp)
     }
-  }, [finishRangeSelection, rangeSelection])
+  }, [rangeSelection])
 
   useEffect(() => {
     if (!timelineTooltip) {
@@ -628,7 +656,7 @@ export function CalendarPage() {
         </Card>
       </section>
 
-      <CalendarCreateInternDialog
+      <InternFormDialog
         open={createDialogOpen}
         onOpenChange={(open) => {
           setCreateDialogOpen(open)
@@ -636,7 +664,11 @@ export function CalendarPage() {
             setPendingCreateRange(null)
           }
         }}
+        teams={teamsQuery.data ?? []}
         initialRange={pendingCreateRange}
+        onSubmit={(payload) => createInternMutation.mutateAsync(payload)}
+        isPending={createInternMutation.isPending}
+        idPrefix="calendar-intern-form"
       />
       {timelineTooltip
         ? createPortal(

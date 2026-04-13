@@ -45,6 +45,11 @@ interface InternFormState {
   internships: InternshipFormState[]
 }
 
+export interface InternFormDialogInitialRange {
+  startDate: string
+  endDate?: string
+}
+
 export interface InternFormPayload {
   firstName: string
   lastName: string
@@ -69,7 +74,7 @@ interface InternFormDialogProps {
   onOpenChange: (open: boolean) => void
   intern?: Intern | null
   teams: Team[]
-  startDate?: string
+  initialRange?: InternFormDialogInitialRange | null
   onSubmit: (payload: InternFormPayload) => Promise<unknown> | unknown
   isPending: boolean
   idPrefix: string
@@ -85,39 +90,39 @@ function getSupervisorsForTeam(teams: Team[], teamId: string) {
   return teams.find((team) => team.id === teamId)?.supervisors ?? []
 }
 
-function createEmptyAssignment(startDate = ''): AssignmentFormState {
+function createEmptyAssignment(startDate = '', endDate = ''): AssignmentFormState {
   return {
     teamId: '',
     supervisorId: '',
     startDate,
-    endDate: '',
+    endDate,
   }
 }
 
-function createEmptyInternship(startDate = ''): InternshipFormState {
+function createEmptyInternship(startDate = '', endDate = ''): InternshipFormState {
   return {
     templateId: '',
     startDate,
-    endDate: '',
+    endDate,
     note: '',
-    assignments: [createEmptyAssignment(startDate)],
+    assignments: [createEmptyAssignment(startDate, endDate)],
   }
 }
 
-function createEmptyForm(startDate?: string): InternFormState {
+function createEmptyForm(initialRange?: InternFormDialogInitialRange | null): InternFormState {
   return {
     firstName: '',
     lastName: '',
     gender: 'male',
     school: '',
     notes: '',
-    internships: startDate ? [createEmptyInternship(startDate)] : [],
+    internships: initialRange ? [createEmptyInternship(initialRange.startDate, initialRange.endDate ?? '')] : [],
   }
 }
 
-function buildForm(intern?: Intern | null, startDate?: string): InternFormState {
+function buildForm(intern?: Intern | null, initialRange?: InternFormDialogInitialRange | null): InternFormState {
   if (!intern) {
-    return createEmptyForm(startDate)
+    return createEmptyForm(initialRange)
   }
 
   return {
@@ -167,14 +172,14 @@ export function InternFormDialog({
   onOpenChange,
   intern,
   teams,
-  startDate,
+  initialRange,
   onSubmit,
   isPending,
   idPrefix,
 }: InternFormDialogProps) {
   const { token } = useAuth()
   const { t } = useLanguage()
-  const [form, setForm] = useState<InternFormState>(() => buildForm(intern, startDate))
+  const [form, setForm] = useState<InternFormState>(() => buildForm(intern, initialRange))
   const [pendingTemplateApplication, setPendingTemplateApplication] = useState<PendingTemplateApplication | null>(null)
   const isEditMode = Boolean(intern)
 
@@ -238,15 +243,15 @@ export function InternFormDialog({
     }
 
     startTransition(() => {
-      setForm(buildForm(intern, startDate))
+      setForm(buildForm(intern, initialRange))
     })
-  }, [intern, open, startDate])
+  }, [initialRange, intern, open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
 
     if (!nextOpen) {
-      setForm(buildForm(intern, startDate))
+      setForm(buildForm(intern, initialRange))
       setPendingTemplateApplication(null)
     }
   }
@@ -317,7 +322,10 @@ export function InternFormDialog({
   const addInternship = () => {
     setForm((current) => ({
       ...current,
-      internships: [...current.internships, createEmptyInternship()],
+      internships: [
+        ...current.internships,
+        createEmptyInternship(initialRange?.startDate ?? '', initialRange?.endDate ?? ''),
+      ],
     }))
   }
 

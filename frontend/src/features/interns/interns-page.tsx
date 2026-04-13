@@ -608,7 +608,7 @@ export function InternsPage() {
                 }}
                 intern={editingIntern}
                 teams={teams}
-                startDate={dialogStartDate}
+                initialRange={dialogStartDate ? { startDate: dialogStartDate } : null}
                 onSubmit={(payload) => saveMutation.mutateAsync(payload)}
                 isPending={saveMutation.isPending}
                 idPrefix="intern-list-form"
